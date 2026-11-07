@@ -11,11 +11,13 @@ import (
 	"github.com/MatheusCampagnolo/wintonicz/internal/processes"
 )
 
-func TestDiagnosticViewShowsPageNavigationAndHelp(t *testing.T) {
-	content := newModel(app.Services{}).View().Content
-	for _, expected := range []string{"Wintonicz", "1 Overview", "2 Processes", "3 TCP Ports", "quit"} {
+func TestHomeViewShowsGroupedNavigationAndHelp(t *testing.T) {
+	current := newModel(app.Services{})
+	current.width, current.height = 100, 24
+	content := current.View().Content
+	for _, expected := range []string{"Wintonicz", "Overview", "Diagnostics", "Windows tools", "navigate", "quit"} {
 		if !strings.Contains(content, expected) {
-			t.Errorf("welcome view does not contain %q", expected)
+			t.Errorf("home view does not contain %q", expected)
 		}
 	}
 }
@@ -35,13 +37,23 @@ func TestQuitKeyReturnsQuitCommand(t *testing.T) {
 	}
 }
 
-func TestNumberKeyChangesPageAndRequestsFreshData(t *testing.T) {
-	updated, command := newModel(app.Services{}).Update(tea.KeyPressMsg(tea.Key{Text: "2", Code: '2'}))
-	if updated.(model).page != processesPage {
-		t.Fatal("page did not change to the process browser")
+func TestHomeTabShowsToolsAndEnterOpensSelectedTool(t *testing.T) {
+	current := newModel(app.Services{})
+	updated, _ := current.Update(tea.KeyPressMsg(tea.Key{Code: tea.KeyTab}))
+	current = updated.(model)
+	if current.homeSectionPage() != diagnosticsMenuPage {
+		t.Fatal("Tab did not switch the active Home area to Diagnostics")
+	}
+	if !strings.Contains(current.menuView(), "Processes") {
+		t.Fatal("Diagnostics tools were not shown on Home")
+	}
+	updated, _ = current.Update(tea.KeyPressMsg(tea.Key{Text: "j", Code: 'j'}))
+	updated, command := updated.(model).Update(tea.KeyPressMsg(tea.Key{Code: tea.KeyEnter}))
+	if updated.(model).page != portsPage {
+		t.Fatal("Enter did not open the selected TCP ports tool")
 	}
 	if command == nil {
-		t.Fatal("page change did not request a data refresh")
+		t.Fatal("opening a diagnostic tool did not request its data")
 	}
 }
 

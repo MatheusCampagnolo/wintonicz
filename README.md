@@ -59,9 +59,9 @@ Run the following in Windows Terminal or Console Host:
 ./bin/wintonicz.exe
 ```
 
-Running with no arguments opens the TUI when both standard input and output are interactive. Use `1`–`5` or Tab to move through Overview, Processes, TCP Ports, Network, and Windows Panels. In Processes, press `/` to filter by process name or PID, Enter to apply, and Esc to cancel. In Network, press `c`, enter a `host:port`, then press Enter for a DNS/TCP check or Esc to cancel. This explicitly contacts only the target you entered and uses a three-second timeout. Use arrow keys or `j`/`k` in tables, `r` to refresh, Enter to open a selected panel, `?` for key help, and `q` to exit. If output is redirected, the program prints help instead of taking over the terminal.
+Running with no arguments opens the TUI when both standard input and output are interactive. Home groups the tools into Overview, Diagnostics, and Windows tools. Switch areas with Tab/Shift+Tab or keys `1`–`3`; each area's selectable tools appear immediately below the tabs. Use Up/Down or `j`/`k` to select an option, then Enter to open it. Windows tools shows the panel catalog directly. Press Esc or Backspace to return to Home. In Processes, press `/` to edit a process-name or PID filter; Backspace/Delete remove text, Ctrl+U clears it, Enter applies it, and Esc cancels it. In Network, press `c`, enter a `host:port`, then press Enter for a DNS/TCP check or Esc to cancel. This explicitly contacts only the target you entered and uses a three-second timeout. Press `r` to refresh a diagnostic view, `?` for contextual key help, and `q` to exit. If output is redirected, the program prints help instead of taking over the terminal.
 
-If Windows denies access to the TCP listener table, `port list` and the Ports TUI page display the collection error; they do not claim that there are no listeners. Listener access can depend on the Windows environment, so validate this command on the target machine.
+If Windows denies access to the TCP listener table, `port list` and the TCP Ports TUI page display the collection error; they do not claim that there are no listeners. Listener access can depend on the Windows environment, so validate this command on the target machine.
 
 To run the current automated checks:
 

@@ -16,4 +16,9 @@ coverage.out
 .vscode/
 .DS_Store
 Thumbs.db
+
+# Local coding-agent instructions and skills
+/.agents/
+/AGENTS.md
+/skills-lock.json
 Desktop.ini

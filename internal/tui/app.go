@@ -21,12 +21,20 @@ import (
 type page int
 
 const (
-	overviewPage page = iota
+	homePage page = iota
+	diagnosticsMenuPage
+	overviewPage
 	processesPage
 	portsPage
 	networkPage
 	panelsPage
 )
+
+type menuItem struct {
+	title       string
+	description string
+	destination page
+}
 
 type keyMap struct {
 	quit         key.Binding
@@ -34,45 +42,92 @@ type keyMap struct {
 	refresh      key.Binding
 	search       key.Binding
 	connectivity key.Binding
-	overview     key.Binding
-	processes    key.Binding
-	ports        key.Binding
-	network      key.Binding
-	panels       key.Binding
+	navigate     key.Binding
+	switchTab    key.Binding
+	selectTab    key.Binding
+	open         key.Binding
+	back         key.Binding
+	erase        key.Binding
+	menu         bool
+	editing      bool
+	page         page
 }
 
 func (k keyMap) ShortHelp() []key.Binding {
-	return []key.Binding{k.overview, k.processes, k.ports, k.network, k.panels, k.refresh, k.help, k.quit}
+	if k.menu {
+		bindings := []key.Binding{k.navigate, k.open, k.back}
+		if k.page == homePage {
+			bindings = append(bindings, k.switchTab, k.selectTab)
+		}
+		return append(bindings, k.help, k.quit)
+	}
+	if k.editing {
+		return []key.Binding{k.erase, k.open, k.back, k.help, k.quit}
+	}
+	bindings := []key.Binding{k.back, k.refresh, k.navigate}
+	if k.page == processesPage {
+		bindings = append(bindings, k.search)
+	}
+	if k.page == networkPage {
+		bindings = append(bindings, k.connectivity)
+	}
+	if k.page == panelsPage {
+		bindings = append(bindings, k.open)
+	}
+	return append(bindings, k.help, k.quit)
 }
 
 func (k keyMap) FullHelp() [][]key.Binding {
-	return [][]key.Binding{{k.overview, k.processes, k.ports, k.network, k.panels}, {k.search, k.connectivity, k.refresh, k.help, k.quit}}
+	if k.menu {
+		if k.page != homePage {
+			return [][]key.Binding{{k.navigate, k.open, k.back}, {k.help, k.quit}}
+		}
+		return [][]key.Binding{{k.switchTab, k.selectTab, k.navigate}, {k.open, k.back, k.help, k.quit}}
+	}
+	if k.editing {
+		return [][]key.Binding{{k.erase, k.open, k.back}, {k.help, k.quit}}
+	}
+	contextual := []key.Binding{k.refresh}
+	if k.page == processesPage {
+		contextual = append(contextual, k.search)
+	}
+	if k.page == networkPage {
+		contextual = append(contextual, k.connectivity)
+	}
+	if k.page == panelsPage {
+		contextual = append(contextual, k.open)
+	}
+	return [][]key.Binding{{k.back, k.navigate}, contextual, {k.help, k.quit}}
 }
 
 type model struct {
-	services           app.Services
-	keys               keyMap
-	help               help.Model
-	table              table.Model
-	page               page
-	processes          []processes.Entry
-	processFilter      string
-	processFilterDraft string
-	filtering          bool
-	connectivityPrompt bool
-	connectivityDraft  string
-	connectivityRun    bool
-	connectivityResult *network.ConnectivityResult
-	connectivityErr    error
-	ports              []ports.Listener
-	snapshot           *system.Snapshot
-	adapters           []network.Adapter
-	panelList          []panels.Entry
-	width              int
-	height             int
-	loading            bool
-	err                error
-	notice             string
+	services            app.Services
+	keys                keyMap
+	help                help.Model
+	table               table.Model
+	page                page
+	navigation          []page
+	menuSelection       map[page]int
+	processes           []processes.Entry
+	processFilter       string
+	processFilterDraft  string
+	processFilterCursor int
+	filtering           bool
+	connectivityPrompt  bool
+	connectivityDraft   string
+	connectivityCursor  int
+	connectivityRun     bool
+	connectivityResult  *network.ConnectivityResult
+	connectivityErr     error
+	ports               []ports.Listener
+	snapshot            *system.Snapshot
+	adapters            []network.Adapter
+	panelList           []panels.Entry
+	width               int
+	height              int
+	loading             bool
+	err                 error
+	notice              string
 }
 
 type pageLoadedMsg struct {
@@ -86,6 +141,10 @@ type pageLoadedMsg struct {
 }
 
 func newModel(services app.Services) model {
+	var panelList []panels.Entry
+	if services.Panels != nil {
+		panelList = services.Panels.ListPanels()
+	}
 	return model{
 		services: services,
 		keys: keyMap{
@@ -94,15 +153,19 @@ func newModel(services app.Services) model {
 			refresh:      key.NewBinding(key.WithKeys("r"), key.WithHelp("r", "refresh")),
 			search:       key.NewBinding(key.WithKeys("/"), key.WithHelp("/", "filter processes")),
 			connectivity: key.NewBinding(key.WithKeys("c"), key.WithHelp("c", "check connectivity")),
-			overview:     key.NewBinding(key.WithKeys("1"), key.WithHelp("1", "overview")),
-			processes:    key.NewBinding(key.WithKeys("2"), key.WithHelp("2", "processes")),
-			ports:        key.NewBinding(key.WithKeys("3"), key.WithHelp("3", "ports")),
-			network:      key.NewBinding(key.WithKeys("4"), key.WithHelp("4", "network")),
-			panels:       key.NewBinding(key.WithKeys("5"), key.WithHelp("5", "panels")),
+			navigate:     key.NewBinding(key.WithKeys("up", "down", "j", "k"), key.WithHelp("↑/↓", "navigate")),
+			switchTab:    key.NewBinding(key.WithKeys("tab", "shift+tab", "left", "right"), key.WithHelp("tab/←/→", "switch tab")),
+			selectTab:    key.NewBinding(key.WithKeys("1", "2", "3"), key.WithHelp("1–3", "select tab")),
+			open:         key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", "open/select")),
+			back:         key.NewBinding(key.WithKeys("esc", "backspace"), key.WithHelp("esc/backspace", "back")),
+			erase:        key.NewBinding(key.WithKeys("backspace", "delete"), key.WithHelp("backspace/delete", "edit text")),
 		},
-		help:    help.New(),
-		table:   table.New(table.WithFocused(true), table.WithHeight(18)),
-		loading: true,
+		help:          help.New(),
+		table:         table.New(table.WithFocused(true), table.WithHeight(18)),
+		page:          homePage,
+		navigation:    []page{homePage},
+		menuSelection: make(map[page]int),
+		panelList:     panelList,
 	}
 }
 
@@ -114,7 +177,7 @@ func Run(services app.Services) error {
 }
 
 func (m model) Init() tea.Cmd {
-	return m.loadPage()
+	return nil
 }
 
 func (m model) Update(message tea.Msg) (tea.Model, tea.Cmd) {
@@ -149,7 +212,7 @@ func (m model) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 		m.width = message.Width
 		m.height = message.Height
 		m.help.SetWidth(message.Width)
-		m.table.SetWidth(max(1, message.Width-2))
+		m.table.SetWidth(m.tableViewWidth())
 		m.table.SetHeight(m.tableHeight())
 	case tea.KeyPressMsg:
 		if m.connectivityPrompt {
@@ -166,9 +229,10 @@ func (m model) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 			case "esc":
 				m.connectivityPrompt = false
 				m.connectivityDraft = ""
+				m.connectivityCursor = 0
 				return m, nil
 			default:
-				m.connectivityDraft = editTextDraft(m.connectivityDraft, message, 255)
+				m.connectivityDraft, m.connectivityCursor = editTextDraft(m.connectivityDraft, m.connectivityCursor, message, 255)
 				return m, nil
 			}
 		}
@@ -180,18 +244,23 @@ func (m model) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 			case "enter":
 				m.processFilter = strings.TrimSpace(m.processFilterDraft)
 				m.processFilterDraft = m.processFilter
+				m.processFilterCursor = len([]rune(m.processFilterDraft))
 				m.filtering = false
 				m.setTableRows()
 				return m, nil
 			case "esc":
 				m.processFilterDraft = m.processFilter
+				m.processFilterCursor = len([]rune(m.processFilterDraft))
 				m.filtering = false
 				return m, nil
-			case "backspace":
 			default:
-				m.processFilterDraft = editTextDraft(m.processFilterDraft, message, 80)
+				m.processFilterDraft, m.processFilterCursor = editTextDraft(m.processFilterDraft, m.processFilterCursor, message, 80)
+				return m, nil
 			}
-			return m, nil
+		}
+
+		if isBackNavigationKey(message) {
+			return m.goBack()
 		}
 
 		switch message.String() {
@@ -199,38 +268,86 @@ func (m model) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 			return m, tea.Quit
 		case "?":
 			m.help.ShowAll = !m.help.ShowAll
-		case "1":
-			return m.switchPage(overviewPage)
-		case "2":
-			return m.switchPage(processesPage)
-		case "3":
-			return m.switchPage(portsPage)
-		case "4":
-			return m.switchPage(networkPage)
-		case "5":
-			return m.switchPage(panelsPage)
 		case "enter":
+			if m.page == homePage {
+				if m.homeSectionPage() == panelsPage {
+					return m, m.openSelectedPanel()
+				}
+				return m.openSelectedHomeItem()
+			}
+			if m.page == diagnosticsMenuPage {
+				return m.openSelectedMenuItem()
+			}
 			if m.page == panelsPage {
 				return m, m.openSelectedPanel()
 			}
-		case "tab":
-			return m.switchPage((m.page + 1) % 5)
-		case "shift+tab":
-			return m.switchPage((m.page + 4) % 5)
 		case "r":
-			m.loading = true
-			m.err = nil
-			return m, m.loadPage()
+			if !isMenuPage(m.page) {
+				m.loading = true
+				m.err = nil
+				return m, m.loadPage()
+			}
 		case "/":
 			if m.page == processesPage {
 				m.filtering = true
 				m.processFilterDraft = m.processFilter
+				m.processFilterCursor = len([]rune(m.processFilterDraft))
 			}
 		case "c":
 			if m.page == networkPage {
 				m.connectivityPrompt = true
 				m.connectivityDraft = ""
+				m.connectivityCursor = 0
 			}
+		case "tab", "right":
+			if m.page == homePage {
+				m.moveMenuSelection(1)
+				if m.homeSectionPage() == panelsPage {
+					m.setTableRows()
+				}
+				return m, nil
+			}
+		case "shift+tab", "left":
+			if m.page == homePage {
+				m.moveMenuSelection(-1)
+				if m.homeSectionPage() == panelsPage {
+					m.setTableRows()
+				}
+				return m, nil
+			}
+		case "1", "2", "3":
+			if m.page == homePage {
+				selection, _ := strconv.Atoi(message.String())
+				m.selectMenuItem(selection - 1)
+				if m.homeSectionPage() == panelsPage {
+					m.setTableRows()
+				}
+				return m, nil
+			}
+		case "up", "k":
+			if m.page == homePage && m.homeSectionPage() != panelsPage {
+				m.moveMenuSelectionFor(m.homeSectionPage(), -1)
+				return m, nil
+			}
+			if m.page == diagnosticsMenuPage {
+				m.moveMenuSelection(-1)
+				return m, nil
+			}
+			updated, command := m.table.Update(message)
+			m.table = updated
+			return m, command
+		case "down", "j":
+			if m.page == homePage && m.homeSectionPage() != panelsPage {
+				m.moveMenuSelectionFor(m.homeSectionPage(), 1)
+				return m, nil
+			}
+			if m.page == diagnosticsMenuPage {
+				m.moveMenuSelection(1)
+				return m, nil
+			}
+			updated, command := m.table.Update(message)
+			m.table = updated
+			return m, command
 		default:
 			updated, command := m.table.Update(message)
 			m.table = updated
@@ -241,15 +358,134 @@ func (m model) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-func (m model) switchPage(next page) (tea.Model, tea.Cmd) {
+func (m model) activeKeys() keyMap {
+	keys := m.keys
+	keys.menu = isMenuPage(m.page)
+	keys.editing = m.filtering || m.connectivityPrompt
+	keys.page = m.page
+	if keys.editing {
+		keys.back = key.NewBinding(key.WithKeys("esc"), key.WithHelp("esc", "cancel"))
+		if m.filtering {
+			keys.open = key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", "apply filter"))
+		} else {
+			keys.open = key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", "run check"))
+		}
+	}
+	return keys
+}
+
+func (m model) pushPage(next page) (tea.Model, tea.Cmd) {
 	if m.page == next {
 		return m, nil
 	}
+	m.navigation = append(m.navigation, next)
 	m.page = next
-	m.loading = true
+	m.loading = !isMenuPage(next)
 	m.err = nil
 	m.notice = ""
+	if isMenuPage(next) {
+		return m, nil
+	}
 	return m, m.loadPage()
+}
+
+func (m model) goBack() (tea.Model, tea.Cmd) {
+	if len(m.navigation) <= 1 {
+		return m, nil
+	}
+	m.navigation = m.navigation[:len(m.navigation)-1]
+	m.page = m.navigation[len(m.navigation)-1]
+	m.loading = false
+	m.err = nil
+	m.notice = ""
+	return m, nil
+}
+
+func (m *model) moveMenuSelection(offset int) {
+	m.moveMenuSelectionFor(m.page, offset)
+}
+
+func (m *model) moveMenuSelectionFor(current page, offset int) {
+	items := menuItems(current)
+	if current == homePage {
+		items = homeSections()
+	}
+	if len(items) == 0 {
+		return
+	}
+	m.selectMenuItemFor(current, m.menuSelection[current]+offset)
+}
+
+func (m *model) selectMenuItem(selection int) {
+	m.selectMenuItemFor(m.page, selection)
+}
+
+func (m *model) selectMenuItemFor(current page, selection int) {
+	items := menuItems(current)
+	if current == homePage {
+		items = homeSections()
+	}
+	if len(items) == 0 {
+		return
+	}
+	selection = (selection%len(items) + len(items)) % len(items)
+	m.menuSelection[current] = selection
+}
+
+func (m model) homeSectionPage() page {
+	switch m.menuSelection[homePage] {
+	case 1:
+		return diagnosticsMenuPage
+	case 2:
+		return panelsPage
+	default:
+		return overviewPage
+	}
+}
+
+func (m model) openSelectedHomeItem() (tea.Model, tea.Cmd) {
+	items := menuItems(m.homeSectionPage())
+	selection := m.menuSelection[m.homeSectionPage()]
+	if selection < 0 || selection >= len(items) {
+		return m, nil
+	}
+	return m.pushPage(items[selection].destination)
+}
+
+func (m model) openSelectedMenuItem() (tea.Model, tea.Cmd) {
+	items := menuItems(m.page)
+	selection := m.menuSelection[m.page]
+	if selection < 0 || selection >= len(items) {
+		return m, nil
+	}
+	return m.pushPage(items[selection].destination)
+}
+
+func isMenuPage(current page) bool {
+	return current == homePage
+}
+
+func menuItems(current page) []menuItem {
+	switch current {
+	case overviewPage:
+		return []menuItem{{title: "System overview", description: "Windows version, uptime, CPU, memory, and drive space.", destination: overviewPage}}
+	case diagnosticsMenuPage:
+		return []menuItem{
+			{title: "Processes", description: "Browse running processes and filter by name or PID.", destination: processesPage},
+			{title: "TCP ports", description: "Find listening ports and their owning processes.", destination: portsPage},
+			{title: "Network", description: "Inspect adapters, gateways, DNS, and connectivity.", destination: networkPage},
+		}
+	default:
+		return nil
+	}
+}
+
+func homeSections() []menuItem {
+	return []menuItem{
+		{title: "Overview", description: "System information and resource summary.", destination: overviewPage},
+		{title: "Diagnostics", description: "Inspect processes, TCP listeners, and network configuration.", destination: diagnosticsMenuPage},
+		{title: "Windows tools", description: "Browse and open built-in Windows settings and management panels.", destination: panelsPage},
+	}
 }
 
 func (m model) loadPage() tea.Cmd {
@@ -301,7 +537,7 @@ func (m *model) setTableRows() {
 		for _, adapter := range m.adapters {
 			rows = append(rows, table.Row{strconv.Itoa(adapter.Index), adapter.Name, adapter.Status, strings.Join(adapter.Addresses, ", ")})
 		}
-	} else if m.page == panelsPage {
+	} else if m.page == panelsPage || (m.page == homePage && m.homeSectionPage() == panelsPage) {
 		columns = []table.Column{
 			{Title: "KEY", Width: 24},
 			{Title: "WINDOWS PANEL", Width: 32},
@@ -335,13 +571,23 @@ func (m *model) setTableRows() {
 		table.WithFocused(true),
 		table.WithColumns(columns),
 		table.WithRows(rows),
-		table.WithWidth(max(1, m.width-2)),
+		table.WithWidth(m.tableViewWidth()),
 		table.WithHeight(m.tableHeight()),
 	)
 }
 
+func (m model) tableViewWidth() int {
+	if m.width >= 136 {
+		return max(96, m.width*70/100)
+	}
+	return max(1, m.width-2)
+}
+
 func (m model) tableHeight() int {
 	height := max(1, m.height-10)
+	if m.page == homePage && m.homeSectionPage() == panelsPage && m.width < 136 {
+		return max(3, height-7)
+	}
 	if m.page == networkPage {
 		return min(height, max(1, len(m.adapters)+1))
 	}
