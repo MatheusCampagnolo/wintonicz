@@ -11,7 +11,9 @@ import (
 	"github.com/MatheusCampagnolo/wintonicz/internal/panels"
 	"github.com/MatheusCampagnolo/wintonicz/internal/ports"
 	"github.com/MatheusCampagnolo/wintonicz/internal/processes"
+	"github.com/MatheusCampagnolo/wintonicz/internal/services"
 	"github.com/MatheusCampagnolo/wintonicz/internal/system"
+	"github.com/MatheusCampagnolo/wintonicz/internal/usb"
 )
 
 type jsonEnvelope struct {
@@ -120,6 +122,32 @@ func writePanelTable(w io.Writer, items []panels.Entry) error {
 	fmt.Fprintln(table, "KEY\tNAME\tDESCRIPTION")
 	for _, item := range items {
 		fmt.Fprintf(table, "%s\t%s\t%s\n", item.Key, item.Name, item.Description)
+	}
+	return table.Flush()
+}
+
+func writeServiceTable(w io.Writer, entries []services.Entry) error {
+	if len(entries) == 0 {
+		_, err := fmt.Fprintln(w, "No Windows services found.")
+		return err
+	}
+	table := tabwriter.NewWriter(w, 0, 4, 2, ' ', 0)
+	fmt.Fprintln(table, "NAME\tDISPLAY NAME\tSTATE\tPID")
+	for _, entry := range entries {
+		fmt.Fprintf(table, "%s\t%s\t%s\t%d\n", entry.Name, entry.DisplayName, entry.State, entry.PID)
+	}
+	return table.Flush()
+}
+
+func writeUSBTable(w io.Writer, devices []usb.Device) error {
+	if len(devices) == 0 {
+		_, err := fmt.Fprintln(w, "No connected USB devices found.")
+		return err
+	}
+	table := tabwriter.NewWriter(w, 0, 4, 2, ' ', 0)
+	fmt.Fprintln(table, "NAME\tMANUFACTURER\tCLASS\tLOCATION")
+	for _, device := range devices {
+		fmt.Fprintf(table, "%s\t%s\t%s\t%s\n", device.Name, valueOrUnavailable(device.Manufacturer), valueOrUnavailable(device.Class), valueOrUnavailable(device.Location))
 	}
 	return table.Flush()
 }

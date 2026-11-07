@@ -31,6 +31,8 @@ func NewRootCommand(version string, runTUI func() error, services app.Services) 
 		newProcessCommand(services),
 		newPortCommand(services),
 		newSystemCommand(services),
+		newServiceCommand(services),
+		newUSBCommand(services),
 		newNetworkCommand(services),
 		newPanelCommand(services),
 	)

@@ -112,6 +112,20 @@ func (m model) pageView() string {
 		details := strings.Join([]string{m.selectedNetworkDetails(), "", m.networkConnectivityView()}, "\n")
 		return m.detailLayout(main, "ADAPTER DETAILS & CONNECTIVITY", details)
 	}
+	if m.page == servicesPage {
+		if len(m.serviceList) == 0 {
+			return "No Windows services were found."
+		}
+		main := lipgloss.JoinVertical(lipgloss.Left, pageSectionTitle("WINDOWS SERVICES · READ ONLY"), m.table.View())
+		return m.detailLayout(main, "SELECTED SERVICE", m.selectedServiceDetails())
+	}
+	if m.page == usbPage {
+		if len(m.usbDevices) == 0 {
+			return "No connected USB devices were found."
+		}
+		main := lipgloss.JoinVertical(lipgloss.Left, pageSectionTitle("CONNECTED USB DEVICES · READ ONLY"), m.table.View())
+		return m.detailLayout(main, "SELECTED DEVICE", m.selectedUSBDetails())
+	}
 	if m.page == panelsPage {
 		if len(m.panelList) == 0 {
 			return "No Windows panels are available."
@@ -255,6 +269,10 @@ func menuTabLabel(item menuItem) string {
 		return "TCP ports"
 	case networkPage:
 		return "Network"
+	case servicesPage:
+		return "Services"
+	case usbPage:
+		return "USB devices"
 	case panelsPage:
 		return "Windows tools"
 	default:
@@ -268,7 +286,7 @@ func (m model) menuPreview(item menuItem) []string {
 	case overviewPage:
 		entries = []string{"Windows edition and build", "Processor and memory summary", "Uptime and system drive capacity"}
 	case diagnosticsMenuPage:
-		entries = []string{"Process snapshots and parent PIDs", "TCP listeners and process owners", "Adapters, gateway, DNS, and connectivity"}
+		entries = []string{"Process snapshots and parent PIDs", "TCP listeners and process owners", "Adapters, gateway, DNS, and connectivity", "Windows service state and process IDs", "Currently present USB devices"}
 	case panelsPage:
 		entries = []string{"Computer and device management", "Network, Power, Sound, and Printers", "Security, Firewall, and System Restore"}
 	case processesPage:
@@ -277,6 +295,10 @@ func (m model) menuPreview(item menuItem) []string {
 		entries = []string{"Find TCP listening endpoints", "See PID and process owner", "Search from a port or a process"}
 	case networkPage:
 		entries = []string{"Inspect addresses, gateways, and DNS", "Check an explicit host:port", "No connection is made until requested"}
+	case servicesPage:
+		entries = []string{"Browse service names and display names", "Inspect current service state and PID", "Read-only inventory; no service controls"}
+	case usbPage:
+		entries = []string{"Show currently present USB devices", "Display name, manufacturer, class, and location", "No resident monitoring or device changes"}
 	}
 	lines := make([]string, 0, len(entries))
 	for _, entry := range entries {
@@ -299,6 +321,8 @@ func pageTitle(current page) string {
 		return "TCP ports"
 	case networkPage:
 		return "Network"
+	case servicesPage:
+		return "Services"
 	case panelsPage:
 		return "Windows tools"
 	default:
@@ -350,6 +374,34 @@ func (m model) selectedPanelDetails() string {
 		}
 	}
 	return "Select a panel and press Enter to open it."
+}
+
+func (m model) selectedServiceDetails() string {
+	selected := m.table.SelectedRow()
+	if len(selected) < 4 {
+		return "Select a service to inspect its current state and process ID."
+	}
+	return strings.Join([]string{
+		"Name: " + selected[0],
+		"Display name: " + selected[1],
+		"State: " + selected[2],
+		"PID: " + selected[3],
+		"Windows may omit services this account cannot query.",
+	}, "\n")
+}
+
+func (m model) selectedUSBDetails() string {
+	selected := m.table.SelectedRow()
+	if len(selected) < 4 {
+		return "No connected USB device is selected."
+	}
+	return strings.Join([]string{
+		"Device: " + selected[0],
+		"Manufacturer: " + selected[1],
+		"Class: " + selected[2],
+		"Location: " + selected[3],
+		"Only currently present devices are listed.",
+	}, "\n")
 }
 
 func (m model) selectedNetworkDetails() string {

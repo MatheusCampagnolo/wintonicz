@@ -6,7 +6,9 @@ import (
 	"github.com/MatheusCampagnolo/wintonicz/internal/platform/windows"
 	"github.com/MatheusCampagnolo/wintonicz/internal/ports"
 	"github.com/MatheusCampagnolo/wintonicz/internal/processes"
+	"github.com/MatheusCampagnolo/wintonicz/internal/services"
 	"github.com/MatheusCampagnolo/wintonicz/internal/system"
+	"github.com/MatheusCampagnolo/wintonicz/internal/usb"
 )
 
 // Services is the shared read-only feature surface used by both the CLI and TUI.
@@ -16,6 +18,8 @@ type Services struct {
 	System    system.Source
 	Network   network.Source
 	Panels    panels.Source
+	Services  services.Source
+	USB       usb.Source
 }
 
 // NewWindowsServices wires the initial Windows data collectors.
@@ -27,5 +31,7 @@ func NewWindowsServices() Services {
 		System:    collector,
 		Network:   collector,
 		Panels:    collector,
+		Services:  collector,
+		USB:       collector,
 	}
 }

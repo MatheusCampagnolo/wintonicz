@@ -24,6 +24,11 @@ var panelCatalog = []panels.Entry{
 	{Key: "date-time", Name: "Date and Time", Description: "Date, time, and time zone settings."},
 	{Key: "firewall", Name: "Windows Defender Firewall", Description: "Firewall status and rules."},
 	{Key: "system-restore", Name: "System Restore", Description: "Open the Windows restore point wizard."},
+	{Key: "services", Name: "Services", Description: "Inspect and manage installed Windows services."},
+	{Key: "event-viewer", Name: "Event Viewer", Description: "Review Windows application, system, and security logs."},
+	{Key: "task-manager", Name: "Task Manager", Description: "Inspect running applications, processes, and resource usage."},
+	{Key: "disk-management", Name: "Disk Management", Description: "View disks, partitions, and volumes."},
+	{Key: "disk-cleanup", Name: "Disk Cleanup", Description: "Open the built-in utility for reviewing removable system files."},
 }
 
 type panelTarget struct {
@@ -46,6 +51,11 @@ var panelTargets = map[string]panelTarget{
 	"date-time":            {"control.exe", []string{"timedate.cpl"}},
 	"firewall":             {"control.exe", []string{"firewall.cpl"}},
 	"system-restore":       {"rstrui.exe", nil},
+	"services":             {"mmc.exe", []string{"services.msc"}},
+	"event-viewer":         {"mmc.exe", []string{"eventvwr.msc"}},
+	"task-manager":         {"taskmgr.exe", nil},
+	"disk-management":      {"mmc.exe", []string{"diskmgmt.msc"}},
+	"disk-cleanup":         {"cleanmgr.exe", nil},
 }
 
 func (Collector) ListPanels() []panels.Entry {

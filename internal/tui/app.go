@@ -15,7 +15,9 @@ import (
 	"github.com/MatheusCampagnolo/wintonicz/internal/panels"
 	"github.com/MatheusCampagnolo/wintonicz/internal/ports"
 	"github.com/MatheusCampagnolo/wintonicz/internal/processes"
+	"github.com/MatheusCampagnolo/wintonicz/internal/services"
 	"github.com/MatheusCampagnolo/wintonicz/internal/system"
+	"github.com/MatheusCampagnolo/wintonicz/internal/usb"
 )
 
 type page int
@@ -28,6 +30,8 @@ const (
 	portsPage
 	networkPage
 	panelsPage
+	servicesPage
+	usbPage
 )
 
 type menuItem struct {
@@ -123,6 +127,8 @@ type model struct {
 	snapshot            *system.Snapshot
 	adapters            []network.Adapter
 	panelList           []panels.Entry
+	serviceList         []services.Entry
+	usbDevices          []usb.Device
 	width               int
 	height              int
 	loading             bool
@@ -131,13 +137,15 @@ type model struct {
 }
 
 type pageLoadedMsg struct {
-	page      page
-	processes []processes.Entry
-	ports     []ports.Listener
-	snapshot  *system.Snapshot
-	adapters  []network.Adapter
-	panelList []panels.Entry
-	err       error
+	page        page
+	processes   []processes.Entry
+	ports       []ports.Listener
+	snapshot    *system.Snapshot
+	adapters    []network.Adapter
+	panelList   []panels.Entry
+	serviceList []services.Entry
+	usbDevices  []usb.Device
+	err         error
 }
 
 func newModel(services app.Services) model {
@@ -194,6 +202,8 @@ func (m model) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 			m.snapshot = message.snapshot
 			m.adapters = message.adapters
 			m.panelList = message.panelList
+			m.serviceList = message.serviceList
+			m.usbDevices = message.usbDevices
 			m.setTableRows()
 		}
 	case panelOpenedMsg:
@@ -474,6 +484,8 @@ func menuItems(current page) []menuItem {
 			{title: "Processes", description: "Browse running processes and filter by name or PID.", destination: processesPage},
 			{title: "TCP ports", description: "Find listening ports and their owning processes.", destination: portsPage},
 			{title: "Network", description: "Inspect adapters, gateways, DNS, and connectivity.", destination: networkPage},
+			{title: "Services", description: "Browse Windows services and inspect their current state.", destination: servicesPage},
+			{title: "USB devices", description: "List USB devices currently connected to this computer.", destination: usbPage},
 		}
 	default:
 		return nil
@@ -506,6 +518,10 @@ func (m model) loadPage() tea.Cmd {
 			result.adapters, result.err = services.Network.NetworkAdapters()
 		case panelsPage:
 			result.panelList = services.Panels.ListPanels()
+		case servicesPage:
+			result.serviceList, result.err = services.Services.ListServices()
+		case usbPage:
+			result.usbDevices, result.err = services.USB.ListConnectedDevices()
 		}
 		return result
 	}
@@ -525,6 +541,28 @@ func (m *model) setTableRows() {
 		rows = make([]table.Row, 0, len(visibleProcesses))
 		for _, entry := range visibleProcesses {
 			rows = append(rows, table.Row{strconv.FormatUint(uint64(entry.PID), 10), entry.Name, strconv.FormatUint(uint64(entry.ParentID), 10)})
+		}
+	} else if m.page == servicesPage {
+		columns = []table.Column{
+			{Title: "SERVICE", Width: 20},
+			{Title: "DISPLAY NAME", Width: 25},
+			{Title: "STATE", Width: 17},
+			{Title: "PID", Width: 7},
+		}
+		rows = make([]table.Row, 0, len(m.serviceList))
+		for _, entry := range m.serviceList {
+			rows = append(rows, table.Row{entry.Name, entry.DisplayName, entry.State, strconv.FormatUint(uint64(entry.PID), 10)})
+		}
+	} else if m.page == usbPage {
+		columns = []table.Column{
+			{Title: "DEVICE", Width: 24},
+			{Title: "MANUFACTURER", Width: 14},
+			{Title: "CLASS", Width: 11},
+			{Title: "LOCATION", Width: 16},
+		}
+		rows = make([]table.Row, 0, len(m.usbDevices))
+		for _, device := range m.usbDevices {
+			rows = append(rows, table.Row{device.Name, valueOrUnavailable(device.Manufacturer), valueOrUnavailable(device.Class), valueOrUnavailable(device.Location)})
 		}
 	} else if m.page == networkPage {
 		columns = []table.Column{

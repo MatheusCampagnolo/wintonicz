@@ -105,6 +105,52 @@ func newSystemCommand(services app.Services) *cobra.Command {
 	return command
 }
 
+func newServiceCommand(deps app.Services) *cobra.Command {
+	command := &cobra.Command{Use: "service", Short: "Inspect Windows services", Args: cobra.NoArgs}
+	var asJSON bool
+	list := &cobra.Command{
+		Use:   "list",
+		Short: "List Windows services and their current state",
+		Args:  cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			entries, err := deps.Services.ListServices()
+			if err != nil {
+				return fmt.Errorf("list Windows services: %w", err)
+			}
+			if asJSON {
+				return writeJSON(cmd.OutOrStdout(), "service list", entries)
+			}
+			return writeServiceTable(cmd.OutOrStdout(), entries)
+		},
+	}
+	list.Flags().BoolVar(&asJSON, "json", false, "Write structured JSON output")
+	command.AddCommand(list)
+	return command
+}
+
+func newUSBCommand(deps app.Services) *cobra.Command {
+	command := &cobra.Command{Use: "usb", Short: "Inspect connected USB devices", Args: cobra.NoArgs}
+	var asJSON bool
+	list := &cobra.Command{
+		Use:   "list",
+		Short: "List currently connected USB devices",
+		Args:  cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			devices, err := deps.USB.ListConnectedDevices()
+			if err != nil {
+				return fmt.Errorf("list connected USB devices: %w", err)
+			}
+			if asJSON {
+				return writeJSON(cmd.OutOrStdout(), "usb list", devices)
+			}
+			return writeUSBTable(cmd.OutOrStdout(), devices)
+		},
+	}
+	list.Flags().BoolVar(&asJSON, "json", false, "Write structured JSON output")
+	command.AddCommand(list)
+	return command
+}
+
 func newNetworkCommand(services app.Services) *cobra.Command {
 	command := &cobra.Command{Use: "network", Short: "Inspect network adapters", Args: cobra.NoArgs}
 	var statusJSON bool

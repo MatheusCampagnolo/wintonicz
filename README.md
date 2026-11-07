@@ -43,10 +43,12 @@ Set a build version explicitly when needed:
 ./bin/wintonicz.exe port find 8080
 ./bin/wintonicz.exe network status
 ./bin/wintonicz.exe network check example.com:443
+./bin/wintonicz.exe service list
+./bin/wintonicz.exe usb list
 ./bin/wintonicz.exe panel list
 ```
 
-Add `--json` to structured data commands. Successful JSON output uses a `schemaVersion`, `command`, and `data` envelope. On failure, Wintonicz writes a readable error to stderr and exits with status 1; it does not emit an error envelope to stdout. `panel open <key>` launches a fixed, listed Windows panel; it never builds a command from an arbitrary executable or shell string.
+Add `--json` to structured data commands. Successful JSON output uses a `schemaVersion`, `command`, and `data` envelope. On failure, Wintonicz writes a readable error to stderr and exits with status 1; it does not emit an error envelope to stdout. `service list` reports the service name, display name, state, and PID without changing service configuration. `panel open <key>` launches a fixed, listed Windows panel; it never builds a command from an arbitrary executable or shell string.
 
 ## Try the TUI
 
@@ -82,6 +84,8 @@ go build -o bin/wintonicz.exe ./cmd/wintonicz
 - Process snapshots show PID, parent PID, executable name, and executable path when Windows allows access.
 - Network status reports interfaces, assigned addresses, gateways, and DNS servers. `network check <host:port>` or the TUI's `c` action explicitly resolves the target and attempts a TCP connection with a timeout; it does not measure throughput or internet speed.
 - System summary reports Windows product/build, uptime, logical processor count, memory, and quota-aware free/total space for the Windows system drive. Hardware model details are not included yet.
+- Service inventory is read-only and reports current Windows service state and PID; Windows may omit services the current account cannot query. Startup configuration and service controls are not included.
+- USB inventory is an on-demand snapshot of currently present USB devices. It does not monitor connection events or expose device serial numbers.
 - Windows panel shortcuts are an allowlist; availability can differ by Windows edition/version.
 - No system-changing tweaks, repair commands, release launcher, or public release are available yet.
 
