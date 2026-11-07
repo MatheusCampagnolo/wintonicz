@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"strings"
 	"testing"
+
+	"github.com/MatheusCampagnolo/wintonicz/internal/app"
 )
 
 func TestVersionFlagPrintsBuildVersion(t *testing.T) {
@@ -11,7 +13,7 @@ func TestVersionFlagPrintsBuildVersion(t *testing.T) {
 	command := NewRootCommand("test-build", func() error {
 		t.Fatal("version flag must not start the TUI")
 		return nil
-	})
+	}, app.Services{})
 	command.SetArgs([]string{"--version"})
 	command.SetOut(&stdout)
 	command.SetErr(&stderr)
@@ -30,8 +32,8 @@ func TestNoArgumentsWithRedirectedStreamsPrintsHelp(t *testing.T) {
 	command := NewRootCommand("dev", func() error {
 		startedTUI = true
 		return nil
-	})
-	command.SetArgs(nil)
+	}, app.Services{})
+	command.SetArgs([]string{})
 	command.SetIn(strings.NewReader(""))
 	command.SetOut(&stdout)
 	command.SetErr(&stderr)
@@ -48,7 +50,7 @@ func TestNoArgumentsWithRedirectedStreamsPrintsHelp(t *testing.T) {
 }
 
 func TestUnknownCommandReturnsError(t *testing.T) {
-	command := NewRootCommand("dev", func() error { return nil })
+	command := NewRootCommand("dev", func() error { return nil }, app.Services{})
 	command.SetArgs([]string{"unknown"})
 
 	if err := command.Execute(); err == nil {

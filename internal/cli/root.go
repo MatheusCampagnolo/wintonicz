@@ -3,12 +3,13 @@ package cli
 import (
 	"os"
 
+	"github.com/MatheusCampagnolo/wintonicz/internal/app"
 	"github.com/spf13/cobra"
 )
 
 // NewRootCommand creates the command-line entry point and starts the TUI only
 // when both standard input and output are connected to an interactive terminal.
-func NewRootCommand(version string, runTUI func() error) *cobra.Command {
+func NewRootCommand(version string, runTUI func() error, services app.Services) *cobra.Command {
 	root := &cobra.Command{
 		Use:           "wintonicz",
 		Short:         "Windows diagnostics and support toolbox",
@@ -26,6 +27,13 @@ func NewRootCommand(version string, runTUI func() error) *cobra.Command {
 	}
 
 	root.SetVersionTemplate("Wintonicz {{.Version}}\n")
+	root.AddCommand(
+		newProcessCommand(services),
+		newPortCommand(services),
+		newSystemCommand(services),
+		newNetworkCommand(services),
+		newPanelCommand(services),
+	)
 	return root
 }
 

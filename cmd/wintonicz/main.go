@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/MatheusCampagnolo/wintonicz/internal/app"
 	"github.com/MatheusCampagnolo/wintonicz/internal/cli"
 	"github.com/MatheusCampagnolo/wintonicz/internal/tui"
 )
@@ -11,7 +12,8 @@ import (
 var version = "dev"
 
 func main() {
-	command := cli.NewRootCommand(version, tui.Run)
+	services := app.NewWindowsServices()
+	command := cli.NewRootCommand(version, func() error { return tui.Run(services) }, services)
 	if err := command.Execute(); err != nil {
 		fmt.Fprintln(os.Stderr, "Error:", err)
 		os.Exit(1)
