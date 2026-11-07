@@ -45,10 +45,13 @@ Set a build version explicitly when needed:
 ./bin/wintonicz.exe network check example.com:443
 ./bin/wintonicz.exe service list
 ./bin/wintonicz.exe usb list
+./bin/wintonicz.exe storage list
+./bin/wintonicz.exe resource snapshot
+./bin/wintonicz.exe support disk-check C:
 ./bin/wintonicz.exe panel list
 ```
 
-Add `--json` to structured data commands. Successful JSON output uses a `schemaVersion`, `command`, and `data` envelope. On failure, Wintonicz writes a readable error to stderr and exits with status 1; it does not emit an error envelope to stdout. `service list` reports the service name, display name, state, and PID without changing service configuration. `panel open <key>` launches a fixed, listed Windows panel; it never builds a command from an arbitrary executable or shell string.
+Add `--json` to structured data commands. Successful JSON output uses a `schemaVersion`, `command`, and `data` envelope. On failure, Wintonicz writes a readable error to stderr and does not emit an error envelope to stdout. `support disk-check C:` prints a preview only; add `--yes` to run the exact `chkdsk C:` command. The action requires an elevated terminal, requests no repairs, and reports Windows output and CHKDSK's exit status. A nonzero CHKDSK result is returned as the process exit code. On an active volume, Windows may report inconclusive errors if it cannot lock the drive. `service list` reports the service name, display name, state, and PID without changing service configuration. `panel open <key>` launches a fixed, listed Windows panel; it never builds a command from an arbitrary executable or shell string.
 
 ## Try the TUI
 
@@ -61,7 +64,7 @@ Run the following in Windows Terminal or Console Host:
 ./bin/wintonicz.exe
 ```
 
-Running with no arguments opens the TUI when both standard input and output are interactive. Home groups the tools into Overview, Diagnostics, and Windows tools. Switch areas with Tab/Shift+Tab or keys `1`–`3`; each area's selectable tools appear immediately below the tabs. Use Up/Down or `j`/`k` to select an option, then Enter to open it. Windows tools shows the panel catalog directly. Press Esc or Backspace to return to Home. In Processes, press `/` to edit a process-name or PID filter; Backspace/Delete remove text, Ctrl+U clears it, Enter applies it, and Esc cancels it. In Network, press `c`, enter a `host:port`, then press Enter for a DNS/TCP check or Esc to cancel. This explicitly contacts only the target you entered and uses a three-second timeout. Press `r` to refresh a diagnostic view, `?` for contextual key help, and `q` to exit. If output is redirected, the program prints help instead of taking over the terminal.
+Running with no arguments opens the TUI when both standard input and output are interactive. Home groups the tools into Overview, Diagnostics, Windows tools, and Support. Switch areas with Tab/Shift+Tab or keys `1`–`4`; each area's selectable tools appear immediately below the tabs. Use Up/Down or `j`/`k` to select an option, then Enter to open it. Windows tools shows the panel catalog directly. Support → Read-only disk check lets you select a drive, review the exact command, and confirm before it runs. Press Esc or Backspace to return to Home. In Processes, press `/` to edit a process-name or PID filter; Backspace/Delete remove text, Ctrl+U clears it, Enter applies it, and Esc cancels it. In Network, press `c`, enter a `host:port`, then press Enter for a DNS/TCP check or Esc to cancel. This explicitly contacts only the target you entered and uses a three-second timeout. Press `r` to refresh a diagnostic view, `?` for contextual key help, and `q` to exit. If output is redirected, the program prints help instead of taking over the terminal.
 
 If Windows denies access to the TCP listener table, `port list` and the TCP Ports TUI page display the collection error; they do not claim that there are no listeners. Listener access can depend on the Windows environment, so validate this command on the target machine.
 
@@ -86,8 +89,10 @@ go build -o bin/wintonicz.exe ./cmd/wintonicz
 - System summary reports Windows product/build, uptime, logical processor count, memory, and quota-aware free/total space for the Windows system drive. Hardware model details are not included yet.
 - Service inventory is read-only and reports current Windows service state and PID; Windows may omit services the current account cannot query. Startup configuration and service controls are not included.
 - USB inventory is an on-demand snapshot of currently present USB devices. It does not monitor connection events or expose device serial numbers.
+- Storage inventory lists Windows logical drives, drive type, total capacity, and free space available to the current user. Empty or inaccessible drives stay visible with an unavailable status.
+- Resource snapshots sample CPU activity over about 500 ms and read physical memory at the end of the sample. They are on-demand snapshots, not continuous monitoring.
 - Windows panel shortcuts are an allowlist; availability can differ by Windows edition/version.
-- No system-changing tweaks, repair commands, release launcher, or public release are available yet.
+- System-changing tweaks and repair commands are not available. The read-only disk check is the first guided support action. The release launcher and public release are not available yet.
 
 The implementation roadmap and cloned reference projects are maintained outside this public repository. This keeps planning notes and upstream reference checkouts out of the product source tree.
 

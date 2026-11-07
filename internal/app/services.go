@@ -6,7 +6,10 @@ import (
 	"github.com/MatheusCampagnolo/wintonicz/internal/platform/windows"
 	"github.com/MatheusCampagnolo/wintonicz/internal/ports"
 	"github.com/MatheusCampagnolo/wintonicz/internal/processes"
+	"github.com/MatheusCampagnolo/wintonicz/internal/resources"
 	"github.com/MatheusCampagnolo/wintonicz/internal/services"
+	"github.com/MatheusCampagnolo/wintonicz/internal/storage"
+	"github.com/MatheusCampagnolo/wintonicz/internal/support"
 	"github.com/MatheusCampagnolo/wintonicz/internal/system"
 	"github.com/MatheusCampagnolo/wintonicz/internal/usb"
 )
@@ -20,6 +23,9 @@ type Services struct {
 	Panels    panels.Source
 	Services  services.Source
 	USB       usb.Source
+	Storage   storage.Source
+	Resources resources.Source
+	Support   support.Source
 }
 
 // NewWindowsServices wires the initial Windows data collectors.
@@ -33,5 +39,8 @@ func NewWindowsServices() Services {
 		Panels:    collector,
 		Services:  collector,
 		USB:       collector,
+		Storage:   collector,
+		Resources: collector,
+		Support:   collector,
 	}
 }

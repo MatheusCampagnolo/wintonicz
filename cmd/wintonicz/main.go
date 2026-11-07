@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"os"
 
@@ -16,6 +17,10 @@ func main() {
 	command := cli.NewRootCommand(version, func() error { return tui.Run(services) }, services)
 	if err := command.Execute(); err != nil {
 		fmt.Fprintln(os.Stderr, "Error:", err)
+		var exitError interface{ ExitCode() int }
+		if errors.As(err, &exitError) {
+			os.Exit(exitError.ExitCode())
+		}
 		os.Exit(1)
 	}
 }

@@ -11,7 +11,10 @@ import (
 	"github.com/MatheusCampagnolo/wintonicz/internal/panels"
 	"github.com/MatheusCampagnolo/wintonicz/internal/ports"
 	"github.com/MatheusCampagnolo/wintonicz/internal/processes"
+	"github.com/MatheusCampagnolo/wintonicz/internal/resources"
 	"github.com/MatheusCampagnolo/wintonicz/internal/services"
+	"github.com/MatheusCampagnolo/wintonicz/internal/storage"
+	"github.com/MatheusCampagnolo/wintonicz/internal/support"
 	"github.com/MatheusCampagnolo/wintonicz/internal/system"
 	"github.com/MatheusCampagnolo/wintonicz/internal/usb"
 )
@@ -150,6 +153,64 @@ func writeUSBTable(w io.Writer, devices []usb.Device) error {
 		fmt.Fprintf(table, "%s\t%s\t%s\t%s\n", device.Name, valueOrUnavailable(device.Manufacturer), valueOrUnavailable(device.Class), valueOrUnavailable(device.Location))
 	}
 	return table.Flush()
+}
+
+func writeStorageTable(w io.Writer, volumes []storage.Volume) error {
+	if len(volumes) == 0 {
+		_, err := fmt.Fprintln(w, "No logical drives found.")
+		return err
+	}
+	table := tabwriter.NewWriter(w, 0, 4, 2, ' ', 0)
+	fmt.Fprintln(table, "DRIVE\tTYPE\tFREE\tTOTAL\tSTATUS")
+	for _, volume := range volumes {
+		free, total, status := "unavailable", "unavailable", "unavailable"
+		if volume.Available {
+			free, total, status = humanBytes(volume.Free), humanBytes(volume.Total), "Available"
+		} else if volume.Error != "" {
+			status += ": " + volume.Error
+		}
+		fmt.Fprintf(table, "%s\t%s\t%s\t%s\t%s\n", volume.Drive, volume.Type, free, total, status)
+	}
+	return table.Flush()
+}
+
+func writeResourceSummary(w io.Writer, snapshot resources.Snapshot) error {
+	_, err := fmt.Fprintf(w,
+		"CPU usage: %.1f%% (sampled over %d ms)\nMemory: %s used of %s (%.1f%%)\nMemory available: %s\n",
+		snapshot.CPUPercent,
+		snapshot.SampleWindowMS,
+		humanBytes(snapshot.MemoryUsedBytes),
+		humanBytes(snapshot.MemoryTotalBytes),
+		snapshot.MemoryPercent,
+		humanBytes(snapshot.MemoryAvailableBytes),
+	)
+	return err
+}
+
+func writeDiskCheckPreview(w io.Writer, preview support.DiskCheckPreview) error {
+	_, err := fmt.Fprintf(w,
+		"Action preview\nCommand: %s\nPurpose: %s\nFilesystem changes: none requested\nAdministrator privileges: required\nRestart: not expected\nNote: %s\nNo command was run. Rerun with --yes to execute.\n",
+		preview.Command,
+		preview.Purpose,
+		preview.Notes,
+	)
+	return err
+}
+
+func writeDiskCheckResult(w io.Writer, result support.DiskCheckResult) error {
+	status := "completed"
+	if result.ExitCode != 0 {
+		status = "returned a nonzero status"
+	}
+	if _, err := fmt.Fprintf(w, "Command: %s\nStatus: %s (exit code %d)\nDuration: %d ms\n", result.Command, status, result.ExitCode, result.DurationMS); err != nil {
+		return err
+	}
+	if result.Output == "" {
+		_, err := fmt.Fprintln(w, "Windows returned no output.")
+		return err
+	}
+	_, err := fmt.Fprint(w, result.Output)
+	return err
 }
 
 func valueOrUnavailable(value string) string {

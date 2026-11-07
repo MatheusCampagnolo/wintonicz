@@ -50,10 +50,9 @@ func (Collector) SystemSnapshot() (system.Snapshot, error) {
 	}
 	hostname, _ := os.Hostname()
 
-	memory := memoryStatusEx{Length: uint32(unsafe.Sizeof(memoryStatusEx{}))}
-	result, _, callErr := globalMemoryStatusEx.Call(uintptr(unsafe.Pointer(&memory)))
-	if result == 0 {
-		return system.Snapshot{}, fmt.Errorf("read physical memory status: %w", callErr)
+	memory, err := readMemoryStatus()
+	if err != nil {
+		return system.Snapshot{}, err
 	}
 
 	uptimeMilliseconds, _, callErr := getTickCount64.Call()
@@ -78,4 +77,13 @@ func (Collector) SystemSnapshot() (system.Snapshot, error) {
 		DriveFreeBytes:       driveFree,
 		Uptime:               (time.Duration(uptimeMilliseconds) * time.Millisecond).Round(time.Second).String(),
 	}, nil
+}
+
+func readMemoryStatus() (memoryStatusEx, error) {
+	memory := memoryStatusEx{Length: uint32(unsafe.Sizeof(memoryStatusEx{}))}
+	result, _, callErr := globalMemoryStatusEx.Call(uintptr(unsafe.Pointer(&memory)))
+	if result == 0 {
+		return memoryStatusEx{}, fmt.Errorf("read physical memory status: %w", callErr)
+	}
+	return memory, nil
 }

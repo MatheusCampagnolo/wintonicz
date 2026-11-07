@@ -33,7 +33,10 @@ func NewRootCommand(version string, runTUI func() error, services app.Services) 
 		newSystemCommand(services),
 		newServiceCommand(services),
 		newUSBCommand(services),
+		newStorageCommand(services),
+		newResourceCommand(services),
 		newNetworkCommand(services),
+		newSupportCommand(services),
 		newPanelCommand(services),
 	)
 	return root

@@ -7,6 +7,8 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
+	"github.com/MatheusCampagnolo/wintonicz/internal/storage"
+	"github.com/MatheusCampagnolo/wintonicz/internal/support"
 )
 
 var (
@@ -125,6 +127,19 @@ func (m model) pageView() string {
 		}
 		main := lipgloss.JoinVertical(lipgloss.Left, pageSectionTitle("CONNECTED USB DEVICES · READ ONLY"), m.table.View())
 		return m.detailLayout(main, "SELECTED DEVICE", m.selectedUSBDetails())
+	}
+	if m.page == storagePage {
+		if len(m.volumes) == 0 {
+			return "No logical drives were found."
+		}
+		main := lipgloss.JoinVertical(lipgloss.Left, pageSectionTitle("LOGICAL DRIVE CAPACITY · READ ONLY"), m.table.View())
+		return m.detailLayout(main, "SELECTED DRIVE", m.selectedVolumeDetails())
+	}
+	if m.page == resourcesPage {
+		return m.resourcesView()
+	}
+	if m.page == diskCheckPage {
+		return m.diskCheckView()
 	}
 	if m.page == panelsPage {
 		if len(m.panelList) == 0 {
@@ -273,6 +288,14 @@ func menuTabLabel(item menuItem) string {
 		return "Services"
 	case usbPage:
 		return "USB devices"
+	case storagePage:
+		return "Storage"
+	case resourcesPage:
+		return "Resources"
+	case supportAreaPage:
+		return "Support"
+	case diskCheckPage:
+		return "Read-only disk check"
 	case panelsPage:
 		return "Windows tools"
 	default:
@@ -286,7 +309,7 @@ func (m model) menuPreview(item menuItem) []string {
 	case overviewPage:
 		entries = []string{"Windows edition and build", "Processor and memory summary", "Uptime and system drive capacity"}
 	case diagnosticsMenuPage:
-		entries = []string{"Process snapshots and parent PIDs", "TCP listeners and process owners", "Adapters, gateway, DNS, and connectivity", "Windows service state and process IDs", "Currently present USB devices"}
+		entries = []string{"Process snapshots and parent PIDs", "TCP listeners and process owners", "Adapters, gateway, DNS, and connectivity", "Windows service state and process IDs", "Currently present USB devices", "Logical drive capacity and free space", "Point-in-time CPU and memory usage"}
 	case panelsPage:
 		entries = []string{"Computer and device management", "Network, Power, Sound, and Printers", "Security, Firewall, and System Restore"}
 	case processesPage:
@@ -299,6 +322,14 @@ func (m model) menuPreview(item menuItem) []string {
 		entries = []string{"Browse service names and display names", "Inspect current service state and PID", "Read-only inventory; no service controls"}
 	case usbPage:
 		entries = []string{"Show currently present USB devices", "Display name, manufacturer, class, and location", "No resident monitoring or device changes"}
+	case storagePage:
+		entries = []string{"Inspect fixed, removable, network, and optical drives", "Show free and total capacity when available", "Unavailable and empty media remain explicit"}
+	case resourcesPage:
+		entries = []string{"Measure CPU activity over a 500 ms sample", "Show used, available, and total physical memory", "Snapshot only; this is not continuous monitoring"}
+	case supportAreaPage:
+		entries = []string{"Preview the exact disk-check command", "Run only after explicit confirmation", "No repair or restart options are requested"}
+	case diskCheckPage:
+		entries = []string{"Select a fixed or removable drive", "Review the command before running it", "Scroll through the completed Windows output"}
 	}
 	lines := make([]string, 0, len(entries))
 	for _, entry := range entries {
@@ -321,6 +352,14 @@ func pageTitle(current page) string {
 		return "TCP ports"
 	case networkPage:
 		return "Network"
+	case storagePage:
+		return "Storage"
+	case resourcesPage:
+		return "Resources"
+	case supportAreaPage:
+		return "Support"
+	case diskCheckPage:
+		return "Read-only disk check"
 	case servicesPage:
 		return "Services"
 	case panelsPage:
@@ -402,6 +441,131 @@ func (m model) selectedUSBDetails() string {
 		"Location: " + selected[3],
 		"Only currently present devices are listed.",
 	}, "\n")
+}
+
+func (m model) selectedVolumeDetails() string {
+	selected := m.table.SelectedRow()
+	if len(selected) == 0 {
+		return "Select a logical drive to inspect its capacity."
+	}
+	for _, volume := range m.volumes {
+		if volume.Drive != selected[0] {
+			continue
+		}
+		lines := []string{"Drive: " + volume.Drive, "Type: " + volume.Type}
+		if !volume.Available {
+			lines = append(lines, "Space: unavailable")
+			if volume.Error != "" {
+				lines = append(lines, "Details: "+volume.Error)
+			}
+			return strings.Join(lines, "\n")
+		}
+		lines = append(lines, "Free to current user: "+formatBytes(volume.Free), "Total: "+formatBytes(volume.Total))
+		return strings.Join(lines, "\n")
+	}
+	return "Selected drive details are unavailable."
+}
+
+func (m model) resourcesView() string {
+	if m.resourceSnapshot == nil {
+		return "Resource snapshot is unavailable."
+	}
+	snapshot := m.resourceSnapshot
+	width := max(32, (m.width-5)/2)
+	cpu := renderPanel("CPU", strings.Join([]string{
+		fmt.Sprintf("%.1f%% in use", snapshot.CPUPercent),
+		usageBar(snapshot.CPUPercent),
+		fmt.Sprintf("System average · %d ms sample", snapshot.SampleWindowMS),
+	}, "\n"), width, true)
+	memory := renderPanel("PHYSICAL MEMORY", strings.Join([]string{
+		fmt.Sprintf("%.1f%% in use", snapshot.MemoryPercent),
+		usageBar(snapshot.MemoryPercent),
+		fmt.Sprintf("Used: %s of %s", formatBytes(snapshot.MemoryUsedBytes), formatBytes(snapshot.MemoryTotalBytes)),
+		"Available: " + formatBytes(snapshot.MemoryAvailableBytes),
+	}, "\n"), width, false)
+	if m.width >= 96 {
+		return lipgloss.JoinVertical(lipgloss.Left,
+			pageSectionTitle("RESOURCE SNAPSHOT · READ ONLY"),
+			lipgloss.JoinHorizontal(lipgloss.Top, cpu, " ", memory),
+			lipgloss.NewStyle().Foreground(mutedTextColor).Render("CPU is averaged over the sample window; memory is read once at the end."),
+		)
+	}
+	return lipgloss.JoinVertical(lipgloss.Left,
+		pageSectionTitle("RESOURCE SNAPSHOT · READ ONLY"),
+		cpu,
+		memory,
+		lipgloss.NewStyle().Foreground(mutedTextColor).Render("CPU is averaged over the sample window; memory is read once at the end."),
+	)
+}
+
+func usageBar(percent float64) string {
+	filled := max(0, min(20, int(percent/5)))
+	active := lipgloss.NewStyle().Foreground(accentColor).Render(strings.Repeat("█", filled))
+	remaining := lipgloss.NewStyle().Foreground(borderColor).Render(strings.Repeat("░", 20-filled))
+	return active + remaining
+}
+
+func (m model) diskCheckView() string {
+	if m.diskCheckRunning {
+		return lipgloss.JoinVertical(lipgloss.Left,
+			pageSectionTitle("READ-ONLY DISK CHECK"),
+			"Running "+support.DiskCheckCommand(m.diskCheckTarget)+"...",
+			"No repair switches are used. Avoid interrupting the check; Esc cancels and returns.",
+		)
+	}
+	if m.diskCheckErr != nil {
+		return lipgloss.NewStyle().Foreground(errorTextColor).Render("Disk check could not run: " + m.diskCheckErr.Error())
+	}
+	if m.diskCheckConfirm {
+		preview := support.NewDiskCheckPreview(m.diskCheckTarget)
+		return lipgloss.JoinVertical(lipgloss.Left,
+			pageSectionTitle("REVIEW BEFORE RUNNING"),
+			renderPanel("COMMAND", preview.Command, max(48, m.width-4), true),
+			"Purpose: "+preview.Purpose,
+			"Filesystem changes: no repair options are requested.",
+			"Administrator privileges: required.",
+			"Restart: not expected.",
+			"Note: "+preview.Notes,
+			"",
+			"Press Enter to run or Esc to cancel.",
+		)
+	}
+	if m.diskCheckResult != nil {
+		result := m.diskCheckResult
+		status := "Completed"
+		if result.ExitCode != 0 {
+			status = "Nonzero exit status"
+		}
+		output := result.Output
+		if strings.TrimSpace(output) == "" {
+			output = "(Windows returned no output.)"
+		}
+		return lipgloss.JoinVertical(lipgloss.Left,
+			pageSectionTitle("DISK CHECK RESULT · "+strings.ToUpper(status)),
+			fmt.Sprintf("Command: %s · Exit code: %d · Duration: %d ms", result.Command, result.ExitCode, result.DurationMS),
+			lipgloss.NewStyle().Foreground(mutedTextColor).Render("Use ↑/↓ or Page Up/Page Down to scroll. Esc returns to Support."),
+			m.diskCheckOutput.View(),
+		)
+	}
+	if len(m.diskCheckRows()) == 0 {
+		return "No fixed or removable drives are available for a disk check."
+	}
+	main := lipgloss.JoinVertical(lipgloss.Left,
+		pageSectionTitle("SELECT A DRIVE TO CHECK"),
+		"Choose a drive to preview the read-only command.",
+		m.table.View(),
+	)
+	return m.detailLayout(main, "ABOUT THIS CHECK", "Checks filesystem status only. No repair switches are included.\n\nPress Enter to review the command before it runs.")
+}
+
+func (m model) diskCheckRows() []storage.Volume {
+	rows := make([]storage.Volume, 0, len(m.volumes))
+	for _, volume := range m.volumes {
+		if support.IsDiskCheckVolume(volume) {
+			rows = append(rows, volume)
+		}
+	}
+	return rows
 }
 
 func (m model) selectedNetworkDetails() string {

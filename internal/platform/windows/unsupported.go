@@ -3,13 +3,17 @@
 package windows
 
 import (
+	"context"
 	"errors"
 
 	"github.com/MatheusCampagnolo/wintonicz/internal/network"
 	"github.com/MatheusCampagnolo/wintonicz/internal/panels"
 	"github.com/MatheusCampagnolo/wintonicz/internal/ports"
 	"github.com/MatheusCampagnolo/wintonicz/internal/processes"
+	"github.com/MatheusCampagnolo/wintonicz/internal/resources"
 	"github.com/MatheusCampagnolo/wintonicz/internal/services"
+	"github.com/MatheusCampagnolo/wintonicz/internal/storage"
+	"github.com/MatheusCampagnolo/wintonicz/internal/support"
 	"github.com/MatheusCampagnolo/wintonicz/internal/system"
 	"github.com/MatheusCampagnolo/wintonicz/internal/usb"
 )
@@ -44,6 +48,18 @@ func (Collector) ListServices() ([]services.Entry, error) {
 
 func (Collector) ListConnectedDevices() ([]usb.Device, error) {
 	return nil, errWindowsOnly
+}
+
+func (Collector) ListVolumes() ([]storage.Volume, error) {
+	return nil, errWindowsOnly
+}
+
+func (Collector) ResourceSnapshot() (resources.Snapshot, error) {
+	return resources.Snapshot{}, errWindowsOnly
+}
+
+func (Collector) RunDiskCheck(context.Context, string) (support.DiskCheckResult, error) {
+	return support.DiskCheckResult{}, errWindowsOnly
 }
 
 func (Collector) OpenPanel(string) error {
