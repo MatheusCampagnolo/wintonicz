@@ -3,6 +3,7 @@
 package windows
 
 import (
+	"fmt"
 	"net"
 	"sort"
 
@@ -13,6 +14,10 @@ func (Collector) NetworkAdapters() ([]network.Adapter, error) {
 	interfaces, err := net.Interfaces()
 	if err != nil {
 		return nil, err
+	}
+	adapterDetails, err := collectAdapterAddresses()
+	if err != nil {
+		return nil, fmt.Errorf("read adapter gateway and DNS addresses: %w", err)
 	}
 
 	result := make([]network.Adapter, 0, len(interfaces))
@@ -30,13 +35,18 @@ func (Collector) NetworkAdapters() ([]network.Adapter, error) {
 			items = append(items, address.String())
 		}
 		sort.Strings(items)
+		details := adapterDetails[adapter.Index]
+		gateways := append([]string{}, details.gateways...)
+		dnsServers := append([]string{}, details.dnsServers...)
 		result = append(result, network.Adapter{
-			Index:     adapter.Index,
-			Name:      adapter.Name,
-			Status:    status,
-			MTU:       max(0, adapter.MTU),
-			MAC:       adapter.HardwareAddr.String(),
-			Addresses: items,
+			Index:      adapter.Index,
+			Name:       adapter.Name,
+			Status:     status,
+			MTU:        max(0, adapter.MTU),
+			MAC:        adapter.HardwareAddr.String(),
+			Addresses:  items,
+			Gateways:   gateways,
+			DNSServers: dnsServers,
 		})
 	}
 

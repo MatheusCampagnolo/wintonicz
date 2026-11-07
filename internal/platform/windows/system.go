@@ -60,6 +60,10 @@ func (Collector) SystemSnapshot() (system.Snapshot, error) {
 	if callErr != nil && callErr != windows.ERROR_SUCCESS {
 		return system.Snapshot{}, fmt.Errorf("read system uptime: %w", callErr)
 	}
+	drive, driveTotal, driveFree, err := windowsDriveSpace()
+	if err != nil {
+		return system.Snapshot{}, fmt.Errorf("read Windows drive space: %w", err)
+	}
 
 	return system.Snapshot{
 		Hostname:             hostname,
@@ -69,6 +73,9 @@ func (Collector) SystemSnapshot() (system.Snapshot, error) {
 		LogicalProcessors:    runtime.NumCPU(),
 		TotalMemoryBytes:     memory.TotalPhys,
 		AvailableMemoryBytes: memory.AvailPhys,
+		WindowsDrive:         drive,
+		DriveTotalBytes:      driveTotal,
+		DriveFreeBytes:       driveFree,
 		Uptime:               (time.Duration(uptimeMilliseconds) * time.Millisecond).Round(time.Second).String(),
 	}, nil
 }

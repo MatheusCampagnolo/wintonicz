@@ -42,10 +42,11 @@ Set a build version explicitly when needed:
 ./bin/wintonicz.exe port list
 ./bin/wintonicz.exe port find 8080
 ./bin/wintonicz.exe network status
+./bin/wintonicz.exe network check example.com:443
 ./bin/wintonicz.exe panel list
 ```
 
-Add `--json` to structured data commands. JSON uses a `schemaVersion` and `command` envelope. `panel open <key>` launches a fixed, listed Windows panel; it never builds a command from an arbitrary executable or shell string.
+Add `--json` to structured data commands. Successful JSON output uses a `schemaVersion`, `command`, and `data` envelope. On failure, Wintonicz writes a readable error to stderr and exits with status 1; it does not emit an error envelope to stdout. `panel open <key>` launches a fixed, listed Windows panel; it never builds a command from an arbitrary executable or shell string.
 
 ## Try the TUI
 
@@ -58,7 +59,7 @@ Run the following in Windows Terminal or Console Host:
 ./bin/wintonicz.exe
 ```
 
-Running with no arguments opens the TUI when both standard input and output are interactive. Use `1`–`5` or Tab to move through Overview, Processes, TCP Ports, Network, and Windows Panels. In Processes, press `/` to filter by process name or PID, Enter to apply, and Esc to cancel. Use arrow keys or `j`/`k` in tables, `r` to refresh, Enter to open a selected panel, `?` for key help, and `q` to exit. If output is redirected, the program prints help instead of taking over the terminal.
+Running with no arguments opens the TUI when both standard input and output are interactive. Use `1`–`5` or Tab to move through Overview, Processes, TCP Ports, Network, and Windows Panels. In Processes, press `/` to filter by process name or PID, Enter to apply, and Esc to cancel. In Network, press `c`, enter a `host:port`, then press Enter for a DNS/TCP check or Esc to cancel. This explicitly contacts only the target you entered and uses a three-second timeout. Use arrow keys or `j`/`k` in tables, `r` to refresh, Enter to open a selected panel, `?` for key help, and `q` to exit. If output is redirected, the program prints help instead of taking over the terminal.
 
 If Windows denies access to the TCP listener table, `port list` and the Ports TUI page display the collection error; they do not claim that there are no listeners. Listener access can depend on the Windows environment, so validate this command on the target machine.
 
@@ -79,8 +80,8 @@ go build -o bin/wintonicz.exe ./cmd/wintonicz
 ## Current limitations
 
 - Process snapshots show PID, parent PID, executable name, and executable path when Windows allows access.
-- Network status reports interfaces and assigned addresses; gateway, DNS, throughput, and internet-speed measurements are not included yet.
-- System summary reports Windows product/build, uptime, logical processor count, and memory; disk and hardware model details are not included yet.
+- Network status reports interfaces, assigned addresses, gateways, and DNS servers. `network check <host:port>` or the TUI's `c` action explicitly resolves the target and attempts a TCP connection with a timeout; it does not measure throughput or internet speed.
+- System summary reports Windows product/build, uptime, logical processor count, memory, and quota-aware free/total space for the Windows system drive. Hardware model details are not included yet.
 - Windows panel shortcuts are an allowlist; availability can differ by Windows edition/version.
 - No system-changing tweaks, repair commands, release launcher, or public release are available yet.
 

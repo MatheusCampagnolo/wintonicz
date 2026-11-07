@@ -1,8 +1,10 @@
 package tui
 
 import (
+	"context"
 	"strconv"
 	"strings"
+	"time"
 
 	"charm.land/bubbles/v2/help"
 	"charm.land/bubbles/v2/key"
@@ -27,15 +29,16 @@ const (
 )
 
 type keyMap struct {
-	quit      key.Binding
-	help      key.Binding
-	refresh   key.Binding
-	search    key.Binding
-	overview  key.Binding
-	processes key.Binding
-	ports     key.Binding
-	network   key.Binding
-	panels    key.Binding
+	quit         key.Binding
+	help         key.Binding
+	refresh      key.Binding
+	search       key.Binding
+	connectivity key.Binding
+	overview     key.Binding
+	processes    key.Binding
+	ports        key.Binding
+	network      key.Binding
+	panels       key.Binding
 }
 
 func (k keyMap) ShortHelp() []key.Binding {
@@ -43,7 +46,7 @@ func (k keyMap) ShortHelp() []key.Binding {
 }
 
 func (k keyMap) FullHelp() [][]key.Binding {
-	return [][]key.Binding{{k.overview, k.processes, k.ports, k.network, k.panels}, {k.search, k.refresh, k.help, k.quit}}
+	return [][]key.Binding{{k.overview, k.processes, k.ports, k.network, k.panels}, {k.search, k.connectivity, k.refresh, k.help, k.quit}}
 }
 
 type model struct {
@@ -56,6 +59,11 @@ type model struct {
 	processFilter      string
 	processFilterDraft string
 	filtering          bool
+	connectivityPrompt bool
+	connectivityDraft  string
+	connectivityRun    bool
+	connectivityResult *network.ConnectivityResult
+	connectivityErr    error
 	ports              []ports.Listener
 	snapshot           *system.Snapshot
 	adapters           []network.Adapter
@@ -81,15 +89,16 @@ func newModel(services app.Services) model {
 	return model{
 		services: services,
 		keys: keyMap{
-			quit:      key.NewBinding(key.WithKeys("q", "ctrl+c"), key.WithHelp("q", "quit")),
-			help:      key.NewBinding(key.WithKeys("?"), key.WithHelp("?", "help")),
-			refresh:   key.NewBinding(key.WithKeys("r"), key.WithHelp("r", "refresh")),
-			search:    key.NewBinding(key.WithKeys("/"), key.WithHelp("/", "filter processes")),
-			overview:  key.NewBinding(key.WithKeys("1"), key.WithHelp("1", "overview")),
-			processes: key.NewBinding(key.WithKeys("2"), key.WithHelp("2", "processes")),
-			ports:     key.NewBinding(key.WithKeys("3"), key.WithHelp("3", "ports")),
-			network:   key.NewBinding(key.WithKeys("4"), key.WithHelp("4", "network")),
-			panels:    key.NewBinding(key.WithKeys("5"), key.WithHelp("5", "panels")),
+			quit:         key.NewBinding(key.WithKeys("q", "ctrl+c"), key.WithHelp("q", "quit")),
+			help:         key.NewBinding(key.WithKeys("?"), key.WithHelp("?", "help")),
+			refresh:      key.NewBinding(key.WithKeys("r"), key.WithHelp("r", "refresh")),
+			search:       key.NewBinding(key.WithKeys("/"), key.WithHelp("/", "filter processes")),
+			connectivity: key.NewBinding(key.WithKeys("c"), key.WithHelp("c", "check connectivity")),
+			overview:     key.NewBinding(key.WithKeys("1"), key.WithHelp("1", "overview")),
+			processes:    key.NewBinding(key.WithKeys("2"), key.WithHelp("2", "processes")),
+			ports:        key.NewBinding(key.WithKeys("3"), key.WithHelp("3", "ports")),
+			network:      key.NewBinding(key.WithKeys("4"), key.WithHelp("4", "network")),
+			panels:       key.NewBinding(key.WithKeys("5"), key.WithHelp("5", "panels")),
 		},
 		help:    help.New(),
 		table:   table.New(table.WithFocused(true), table.WithHeight(18)),
@@ -130,13 +139,40 @@ func (m model) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 		} else {
 			m.notice = "Opened " + message.key + "."
 		}
+	case connectivityCheckedMsg:
+		m.connectivityRun = false
+		m.connectivityErr = message.err
+		if message.err == nil {
+			m.connectivityResult = &message.result
+		}
 	case tea.WindowSizeMsg:
 		m.width = message.Width
 		m.height = message.Height
 		m.help.SetWidth(message.Width)
 		m.table.SetWidth(max(1, message.Width-2))
-		m.table.SetHeight(max(1, message.Height-10))
+		m.table.SetHeight(m.tableHeight())
 	case tea.KeyPressMsg:
+		if m.connectivityPrompt {
+			switch message.String() {
+			case "ctrl+c":
+				return m, tea.Quit
+			case "enter":
+				target := strings.TrimSpace(m.connectivityDraft)
+				m.connectivityPrompt = false
+				m.connectivityRun = true
+				m.connectivityResult = nil
+				m.connectivityErr = nil
+				return m, m.checkConnectivity(target)
+			case "esc":
+				m.connectivityPrompt = false
+				m.connectivityDraft = ""
+				return m, nil
+			default:
+				m.connectivityDraft = editTextDraft(m.connectivityDraft, message, 255)
+				return m, nil
+			}
+		}
+
 		if m.filtering {
 			switch message.String() {
 			case "ctrl+c":
@@ -152,16 +188,8 @@ func (m model) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 				m.filtering = false
 				return m, nil
 			case "backspace":
-				runes := []rune(m.processFilterDraft)
-				if len(runes) > 0 {
-					m.processFilterDraft = string(runes[:len(runes)-1])
-				}
-			case "ctrl+u":
-				m.processFilterDraft = ""
 			default:
-				if message.Text != "" && len([]rune(m.processFilterDraft))+len([]rune(message.Text)) <= 80 {
-					m.processFilterDraft += message.Text
-				}
+				m.processFilterDraft = editTextDraft(m.processFilterDraft, message, 80)
 			}
 			return m, nil
 		}
@@ -197,6 +225,11 @@ func (m model) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 			if m.page == processesPage {
 				m.filtering = true
 				m.processFilterDraft = m.processFilter
+			}
+		case "c":
+			if m.page == networkPage {
+				m.connectivityPrompt = true
+				m.connectivityDraft = ""
 			}
 		default:
 			updated, command := m.table.Update(message)
@@ -303,8 +336,16 @@ func (m *model) setTableRows() {
 		table.WithColumns(columns),
 		table.WithRows(rows),
 		table.WithWidth(max(1, m.width-2)),
-		table.WithHeight(max(1, m.height-10)),
+		table.WithHeight(m.tableHeight()),
 	)
+}
+
+func (m model) tableHeight() int {
+	height := max(1, m.height-10)
+	if m.page == networkPage {
+		return min(height, max(1, len(m.adapters)+1))
+	}
+	return height
 }
 
 func (m model) openSelectedPanel() tea.Cmd {
@@ -317,6 +358,18 @@ func (m model) openSelectedPanel() tea.Cmd {
 	return func() tea.Msg {
 		return panelOpenedMsg{key: key, err: services.Panels.OpenPanel(key)}
 	}
+}
+
+func (m model) checkConnectivity(target string) tea.Cmd {
+	return func() tea.Msg {
+		result, err := network.CheckConnectivity(context.Background(), target, 3*time.Second)
+		return connectivityCheckedMsg{result: result, err: err}
+	}
+}
+
+type connectivityCheckedMsg struct {
+	result network.ConnectivityResult
+	err    error
 }
 
 type panelOpenedMsg struct {

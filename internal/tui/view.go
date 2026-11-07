@@ -72,9 +72,9 @@ func (m model) pageView() string {
 	}
 	if m.page == networkPage {
 		if len(m.adapters) == 0 {
-			return "No network adapters were found."
+			return "No network adapters were found.\n\n" + m.networkConnectivityView()
 		}
-		return m.table.View()
+		return m.table.View() + "\n" + m.selectedNetworkDetails() + "\n\n" + m.networkConnectivityView()
 	}
 	if m.page == panelsPage {
 		if len(m.panelList) == 0 {
@@ -94,7 +94,11 @@ func (m model) overviewView() string {
 		return "Windows system information is unavailable."
 	}
 	snapshot := m.snapshot
-	return fmt.Sprintf("Host: %s\nWindows: %s (%s, build %s)\nLogical processors: %d\nMemory: %s total, %s available\nUptime: %s\n\nUse the number keys or Tab to browse diagnostic pages.",
+	driveSummary := "unavailable"
+	if snapshot.WindowsDrive != "" {
+		driveSummary = fmt.Sprintf("%s (%s free of %s)", snapshot.WindowsDrive, formatBytes(snapshot.DriveFreeBytes), formatBytes(snapshot.DriveTotalBytes))
+	}
+	return fmt.Sprintf("Host: %s\nWindows: %s (%s, build %s)\nLogical processors: %d\nMemory: %s total, %s available\nWindows drive: %s\nUptime: %s\n\nUse the number keys or Tab to browse diagnostic pages.",
 		snapshot.Hostname,
 		snapshot.ProductName,
 		valueOrUnavailable(snapshot.DisplayVersion),
@@ -102,6 +106,7 @@ func (m model) overviewView() string {
 		snapshot.LogicalProcessors,
 		formatBytes(snapshot.TotalMemoryBytes),
 		formatBytes(snapshot.AvailableMemoryBytes),
+		driveSummary,
 		snapshot.Uptime,
 	)
 }
@@ -117,6 +122,77 @@ func (m model) selectedPanelDetails() string {
 		}
 	}
 	return "Select a panel and press Enter to open it."
+}
+
+func (m model) selectedNetworkDetails() string {
+	selected := m.table.SelectedRow()
+	if len(selected) == 0 {
+		return "Select a network adapter to see its gateway and DNS servers."
+	}
+	index, err := strconv.Atoi(selected[0])
+	if err != nil {
+		return "Selected network adapter details are unavailable."
+	}
+	for _, adapter := range m.adapters {
+		if adapter.Index != index {
+			continue
+		}
+		mtu := "unavailable"
+		if adapter.MTU > 0 {
+			mtu = strconv.Itoa(adapter.MTU)
+		}
+		return lipgloss.NewStyle().Width(max(32, m.width-2)).Render(fmt.Sprintf("MTU: %s · MAC: %s\nGateway: %s\nDNS servers: %s",
+			mtu,
+			valueOrUnavailable(adapter.MAC),
+			joinOrUnavailable(adapter.Gateways),
+			joinOrUnavailable(adapter.DNSServers),
+		))
+	}
+	return "Selected network adapter details are unavailable."
+}
+
+func (m model) networkConnectivityView() string {
+	if m.connectivityPrompt {
+		prompt := "Connectivity check — enter host:port (for example, example.com:443); Enter runs it, Esc cancels.\nTarget: " + m.connectivityDraft + "▏"
+		return lipgloss.NewStyle().Width(max(32, m.width-2)).Render(prompt)
+	}
+	if m.connectivityRun {
+		return "Checking DNS resolution and TCP reachability..."
+	}
+	if m.connectivityErr != nil {
+		message := "Connectivity check could not run: " + m.connectivityErr.Error()
+		return lipgloss.NewStyle().Width(max(32, m.width-2)).Render(message)
+	}
+	if m.connectivityResult == nil {
+		return "Press c to check connectivity to an explicit host:port."
+	}
+
+	result := m.connectivityResult
+	resolution := "failed"
+	if result.TargetResolved {
+		resolution = "resolved to " + strings.Join(result.ResolvedAddresses, ", ")
+	}
+	tcpStatus := "unreachable"
+	if result.TCPConnected {
+		tcpStatus = "reachable"
+	}
+	message := strings.Join([]string{
+		"Connectivity check",
+		"Target: " + result.Target,
+		"Resolution: " + resolution,
+		fmt.Sprintf("TCP connection: %s (%d ms)", tcpStatus, result.DurationMillis),
+	}, "\n")
+	if result.FailureReason != "" {
+		message += "\nDetails: " + result.FailureReason
+	}
+	return lipgloss.NewStyle().Width(max(32, m.width-2)).Render(message)
+}
+
+func joinOrUnavailable(values []string) string {
+	if len(values) == 0 {
+		return "not configured"
+	}
+	return strings.Join(values, ", ")
 }
 
 func (m model) selectedProcessDetails() string {

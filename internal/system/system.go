@@ -9,7 +9,12 @@ type Snapshot struct {
 	LogicalProcessors    int    `json:"logicalProcessors"`
 	TotalMemoryBytes     uint64 `json:"totalMemoryBytes"`
 	AvailableMemoryBytes uint64 `json:"availableMemoryBytes"`
-	Uptime               string `json:"uptime"`
+	WindowsDrive         string `json:"windowsDrive"`
+	// DriveTotalBytes is the capacity available to the current user, respecting disk quotas.
+	DriveTotalBytes uint64 `json:"driveTotalBytes"`
+	// DriveFreeBytes is the free space available to the current user, respecting disk quotas.
+	DriveFreeBytes uint64 `json:"driveFreeBytes"`
+	Uptime         string `json:"uptime"`
 }
 
 type Source interface {
