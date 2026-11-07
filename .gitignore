@@ -1,6 +1,7 @@
 # Local build output
 /bin/
 /dist/
+/.cache/
 *.exe
 *.test
 
