@@ -1,7 +1,6 @@
 package tui
 
 import (
-	"fmt"
 	"strconv"
 	"strings"
 
@@ -9,7 +8,6 @@ import (
 	"charm.land/bubbles/v2/key"
 	"charm.land/bubbles/v2/table"
 	tea "charm.land/bubbletea/v2"
-	"charm.land/lipgloss/v2"
 	"github.com/MatheusCampagnolo/wintonicz/internal/app"
 	"github.com/MatheusCampagnolo/wintonicz/internal/network"
 	"github.com/MatheusCampagnolo/wintonicz/internal/panels"
@@ -32,6 +30,7 @@ type keyMap struct {
 	quit      key.Binding
 	help      key.Binding
 	refresh   key.Binding
+	search    key.Binding
 	overview  key.Binding
 	processes key.Binding
 	ports     key.Binding
@@ -44,25 +43,28 @@ func (k keyMap) ShortHelp() []key.Binding {
 }
 
 func (k keyMap) FullHelp() [][]key.Binding {
-	return [][]key.Binding{{k.overview, k.processes, k.ports, k.network, k.panels}, {k.refresh, k.help, k.quit}}
+	return [][]key.Binding{{k.overview, k.processes, k.ports, k.network, k.panels}, {k.search, k.refresh, k.help, k.quit}}
 }
 
 type model struct {
-	services  app.Services
-	keys      keyMap
-	help      help.Model
-	table     table.Model
-	page      page
-	processes []processes.Entry
-	ports     []ports.Listener
-	snapshot  *system.Snapshot
-	adapters  []network.Adapter
-	panelList []panels.Entry
-	width     int
-	height    int
-	loading   bool
-	err       error
-	notice    string
+	services           app.Services
+	keys               keyMap
+	help               help.Model
+	table              table.Model
+	page               page
+	processes          []processes.Entry
+	processFilter      string
+	processFilterDraft string
+	filtering          bool
+	ports              []ports.Listener
+	snapshot           *system.Snapshot
+	adapters           []network.Adapter
+	panelList          []panels.Entry
+	width              int
+	height             int
+	loading            bool
+	err                error
+	notice             string
 }
 
 type pageLoadedMsg struct {
@@ -82,6 +84,7 @@ func newModel(services app.Services) model {
 			quit:      key.NewBinding(key.WithKeys("q", "ctrl+c"), key.WithHelp("q", "quit")),
 			help:      key.NewBinding(key.WithKeys("?"), key.WithHelp("?", "help")),
 			refresh:   key.NewBinding(key.WithKeys("r"), key.WithHelp("r", "refresh")),
+			search:    key.NewBinding(key.WithKeys("/"), key.WithHelp("/", "filter processes")),
 			overview:  key.NewBinding(key.WithKeys("1"), key.WithHelp("1", "overview")),
 			processes: key.NewBinding(key.WithKeys("2"), key.WithHelp("2", "processes")),
 			ports:     key.NewBinding(key.WithKeys("3"), key.WithHelp("3", "ports")),
@@ -134,6 +137,35 @@ func (m model) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 		m.table.SetWidth(max(1, message.Width-2))
 		m.table.SetHeight(max(1, message.Height-10))
 	case tea.KeyPressMsg:
+		if m.filtering {
+			switch message.String() {
+			case "ctrl+c":
+				return m, tea.Quit
+			case "enter":
+				m.processFilter = strings.TrimSpace(m.processFilterDraft)
+				m.processFilterDraft = m.processFilter
+				m.filtering = false
+				m.setTableRows()
+				return m, nil
+			case "esc":
+				m.processFilterDraft = m.processFilter
+				m.filtering = false
+				return m, nil
+			case "backspace":
+				runes := []rune(m.processFilterDraft)
+				if len(runes) > 0 {
+					m.processFilterDraft = string(runes[:len(runes)-1])
+				}
+			case "ctrl+u":
+				m.processFilterDraft = ""
+			default:
+				if message.Text != "" && len([]rune(m.processFilterDraft))+len([]rune(message.Text)) <= 80 {
+					m.processFilterDraft += message.Text
+				}
+			}
+			return m, nil
+		}
+
 		switch message.String() {
 		case "q", "ctrl+c":
 			return m, tea.Quit
@@ -161,6 +193,11 @@ func (m model) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 			m.loading = true
 			m.err = nil
 			return m, m.loadPage()
+		case "/":
+			if m.page == processesPage {
+				m.filtering = true
+				m.processFilterDraft = m.processFilter
+			}
 		default:
 			updated, command := m.table.Update(message)
 			m.table = updated
@@ -169,31 +206,6 @@ func (m model) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 	}
 
 	return m, nil
-}
-
-func (m model) View() tea.View {
-	title := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#7DD3FC")).Render("Wintonicz")
-	active := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#7DD3FC"))
-	muted := lipgloss.NewStyle().Foreground(lipgloss.Color("#A1A1AA"))
-	labels := []string{"1 Overview", "2 Processes", "3 TCP Ports", "4 Network", "5 Panels"}
-	for i := range labels {
-		if page(i) == m.page {
-			labels[i] = active.Render(labels[i])
-		} else {
-			labels[i] = muted.Render(labels[i])
-		}
-	}
-	header := lipgloss.JoinVertical(lipgloss.Left,
-		lipgloss.JoinHorizontal(lipgloss.Top, title, "   ", strings.Join(labels, "   ")),
-		muted.Render("Read-only Windows diagnostics"),
-	)
-	body := m.pageView()
-	footer := m.help.View(m.keys)
-	content := lipgloss.JoinVertical(lipgloss.Left, header, "", body, "", footer)
-
-	view := tea.NewView(content)
-	view.AltScreen = true
-	return view
 }
 
 func (m model) switchPage(next page) (tea.Model, tea.Cmd) {
@@ -240,8 +252,9 @@ func (m *model) setTableRows() {
 			{Title: "PROCESS", Width: 26},
 			{Title: "PARENT", Width: 9},
 		}
-		rows = make([]table.Row, 0, len(m.processes))
-		for _, entry := range m.processes {
+		visibleProcesses := m.visibleProcesses()
+		rows = make([]table.Row, 0, len(visibleProcesses))
+		for _, entry := range visibleProcesses {
 			rows = append(rows, table.Row{strconv.FormatUint(uint64(entry.PID), 10), entry.Name, strconv.FormatUint(uint64(entry.ParentID), 10)})
 		}
 	} else if m.page == networkPage {
@@ -294,80 +307,6 @@ func (m *model) setTableRows() {
 	)
 }
 
-func (m model) pageView() string {
-	if m.width < 72 || m.height < 10 {
-		return "Resize the terminal to at least 72 columns by 10 rows."
-	}
-	if m.loading {
-		return "Collecting a read-only snapshot..."
-	}
-	if m.err != nil {
-		message := "Could not collect this snapshot: " + m.err.Error()
-		return lipgloss.NewStyle().Width(max(32, m.width-2)).Foreground(lipgloss.Color("#FCA5A5")).Render(message)
-	}
-	if m.page == overviewPage {
-		return m.overviewView()
-	}
-	if m.page == processesPage {
-		if len(m.processes) == 0 {
-			return "No processes were returned by Windows."
-		}
-		return m.table.View() + "\n" + m.selectedProcessDetails()
-	}
-	if len(m.ports) == 0 {
-		if m.page == portsPage {
-			return "No TCP listeners were found."
-		}
-	}
-	if m.page == networkPage {
-		if len(m.adapters) == 0 {
-			return "No network adapters were found."
-		}
-		return m.table.View()
-	}
-	if m.page == panelsPage {
-		if len(m.panelList) == 0 {
-			return "No Windows panels are available."
-		}
-		detail := m.selectedPanelDetails()
-		if m.notice != "" {
-			detail += "\n" + m.notice
-		}
-		return m.table.View() + "\n" + detail
-	}
-	return m.table.View()
-}
-
-func (m model) overviewView() string {
-	if m.snapshot == nil {
-		return "Windows system information is unavailable."
-	}
-	snapshot := m.snapshot
-	return fmt.Sprintf("Host: %s\nWindows: %s (%s, build %s)\nLogical processors: %d\nMemory: %s total, %s available\nUptime: %s\n\nUse the number keys or Tab to browse diagnostic pages.",
-		snapshot.Hostname,
-		snapshot.ProductName,
-		valueOrUnavailable(snapshot.DisplayVersion),
-		valueOrUnavailable(snapshot.Build),
-		snapshot.LogicalProcessors,
-		formatBytes(snapshot.TotalMemoryBytes),
-		formatBytes(snapshot.AvailableMemoryBytes),
-		snapshot.Uptime,
-	)
-}
-
-func (m model) selectedPanelDetails() string {
-	selected := m.table.SelectedRow()
-	if len(selected) == 0 {
-		return "Select a panel and press Enter to open it."
-	}
-	for _, item := range m.panelList {
-		if item.Key == selected[0] {
-			return item.Description + " Press Enter to open."
-		}
-	}
-	return "Select a panel and press Enter to open it."
-}
-
 func (m model) openSelectedPanel() tea.Cmd {
 	selected := m.table.SelectedRow()
 	if len(selected) == 0 {
@@ -383,46 +322,4 @@ func (m model) openSelectedPanel() tea.Cmd {
 type panelOpenedMsg struct {
 	key string
 	err error
-}
-
-func valueOrUnavailable(value string) string {
-	if value == "" {
-		return "unavailable"
-	}
-	return value
-}
-
-func formatBytes(value uint64) string {
-	const unit = 1024
-	if value < unit {
-		return fmt.Sprintf("%d B", value)
-	}
-	div, exp := uint64(unit), 0
-	for n := value / unit; n >= unit; n /= unit {
-		div *= unit
-		exp++
-	}
-	return fmt.Sprintf("%.1f %cB", float64(value)/float64(div), "KMGTPE"[exp])
-}
-
-func (m model) selectedProcessDetails() string {
-	selected := m.table.SelectedRow()
-	if len(selected) == 0 {
-		return ""
-	}
-	pid, err := strconv.ParseUint(selected[0], 10, 32)
-	if err != nil {
-		return ""
-	}
-	for _, entry := range m.processes {
-		if uint64(entry.PID) != pid {
-			continue
-		}
-		path := entry.Path
-		if path == "" {
-			path = "Executable path unavailable for this process."
-		}
-		return lipgloss.NewStyle().Foreground(lipgloss.Color("#A1A1AA")).Render("Path: " + path)
-	}
-	return strings.TrimSpace(fmt.Sprintf("PID %d is no longer in the process snapshot.", pid))
 }

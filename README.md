@@ -58,7 +58,7 @@ Run the following in Windows Terminal or Console Host:
 ./bin/wintonicz.exe
 ```
 
-Running with no arguments opens the TUI when both standard input and output are interactive. Use `1`–`5` or Tab to move through Overview, Processes, TCP Ports, Network, and Windows Panels. Use arrow keys or `j`/`k` in tables, `r` to refresh, Enter to open a selected panel, `?` for key help, and `q` to exit. If output is redirected, the program prints help instead of taking over the terminal.
+Running with no arguments opens the TUI when both standard input and output are interactive. Use `1`–`5` or Tab to move through Overview, Processes, TCP Ports, Network, and Windows Panels. In Processes, press `/` to filter by process name or PID, Enter to apply, and Esc to cancel. Use arrow keys or `j`/`k` in tables, `r` to refresh, Enter to open a selected panel, `?` for key help, and `q` to exit. If output is redirected, the program prints help instead of taking over the terminal.
 
 If Windows denies access to the TCP listener table, `port list` and the Ports TUI page display the collection error; they do not claim that there are no listeners. Listener access can depend on the Windows environment, so validate this command on the target machine.
 
