@@ -1,0 +1,18 @@
+# Local build output
+/bin/
+/dist/
+*.exe
+*.test
+
+# Go workspace and profiling files
+go.work
+go.work.sum
+*.prof
+coverage.out
+
+# Local editor and operating system files
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+Desktop.ini
