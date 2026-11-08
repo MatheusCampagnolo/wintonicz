@@ -50,6 +50,11 @@ func buildScreen(id string, s app.Services, version string) Screen {
 	case "inspect.processes":
 		return newTableWithMatch(tableConfig[processes.Entry]{
 			title: "PROCESSES", noun: "processes",
+			extra: map[string]extraKey[processes.Entry]{"e": {label: "end process", fn: func(e processes.Entry) tea.Cmd {
+				return func() tea.Msg {
+					return openActionMsg{toolID: "tools.process.end", preset: map[string]string{"pid": strconv.FormatUint(uint64(e.PID), 10)}}
+				}
+			}}},
 			columns: []column{{"PID", 8}, {"NAME", 28}, {"PARENT", 8}, {"PATH", 0}},
 			load:    func() ([]processes.Entry, error) { return s.Processes.ListProcesses() },
 			row: func(e processes.Entry) []string {

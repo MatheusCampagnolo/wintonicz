@@ -8,9 +8,9 @@ import (
 	"strings"
 
 	"github.com/MatheusCampagnolo/wintonicz/internal/actions"
+	"github.com/MatheusCampagnolo/wintonicz/internal/app"
 	"github.com/MatheusCampagnolo/wintonicz/internal/catalog"
 	"github.com/MatheusCampagnolo/wintonicz/internal/config"
-	"github.com/MatheusCampagnolo/wintonicz/internal/network"
 	"github.com/MatheusCampagnolo/wintonicz/internal/privilege"
 	"github.com/MatheusCampagnolo/wintonicz/internal/runner"
 	"github.com/spf13/cobra"
@@ -170,7 +170,7 @@ func nonFlags(args []string) []string {
 	return out
 }
 
-func newToolsCommand() *cobra.Command {
+func newToolsCommand(services app.Services) *cobra.Command {
 	command := &cobra.Command{Use: "tools", Short: "Describe the tools this build offers (for scripts and AI agents)", Args: cobra.NoArgs}
 	var asJSON bool
 	var area string
@@ -208,8 +208,8 @@ func newToolsCommand() *cobra.Command {
 			}
 			data := map[string]any{"tool": tool}
 			if tool.Kind == catalog.KindAction {
-				if build, ok := actions.Plans[tool.ID]; ok {
-					if plan, err := build(); err == nil {
+				if spec, ok := actions.Specs(services)[tool.ID]; ok && len(spec.Params) == 0 {
+					if plan, err := spec.Build(map[string]string{}); err == nil {
 						data["preview"] = plan.Preview
 					}
 				}
@@ -226,22 +226,6 @@ func newToolsCommand() *cobra.Command {
 	}
 	describe.Flags().BoolVar(&asJSON, "json", jsonDefault(), "Write structured JSON output")
 	command.AddCommand(list, describe)
-	return command
-}
-
-func newFlushDNSCommand() *cobra.Command {
-	var asJSON, dryRun, yes bool
-	command := &cobra.Command{
-		Use:   "flushdns",
-		Short: "Clear the Windows DNS resolver cache (administrator)",
-		Args:  cobra.NoArgs,
-		RunE: func(cmd *cobra.Command, _ []string) error {
-			return runAction(cmd, "network flushdns", network.FlushDNSPlan, asJSON, dryRun, yes)
-		},
-	}
-	command.Flags().BoolVar(&asJSON, "json", jsonDefault(), "Write structured JSON output")
-	command.Flags().BoolVar(&dryRun, "dry-run", false, "Show what would run and stop")
-	command.Flags().BoolVar(&yes, "yes", false, "Run without asking; without it only the preview is shown")
 	return command
 }
 

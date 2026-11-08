@@ -142,7 +142,7 @@ func TestActionFlowRefusesToContinueWithoutAdministrator(t *testing.T) {
 	m.elevated = false
 	for _, e := range m.entries {
 		if e.id == "net.flushdns" {
-			m.flow = newFlow(*e.tool, m.cfg)
+			m.flow = newFlow(*e.tool, m.cfg, m.specs, nil)
 		}
 	}
 	m.flow.elev = false
@@ -152,5 +152,47 @@ func TestActionFlowRefusesToContinueWithoutAdministrator(t *testing.T) {
 	}
 	if !strings.Contains(m.render(), "Administrator rights are required") {
 		t.Fatal("review step does not explain the administrator requirement")
+	}
+}
+
+func TestDestructiveActionNeedsTheTypedWordBeforeItRuns(t *testing.T) {
+	m := sized(app.Services{})
+	for i, e := range m.entries {
+		if e.id == "clean.recyclebin" {
+			m.cursor = i
+		}
+	}
+	m = press(m, tea.Key{Code: tea.KeyEnter}) // opens the flow (no inputs)
+	if m.flow == nil || m.flow.step != stepReview {
+		t.Fatal("the flow should open at Review for an action without inputs")
+	}
+	m = press(m, tea.Key{Code: tea.KeyEnter}) // Review -> Confirm
+	if m.flow.step != stepConfirm {
+		t.Fatalf("step = %v, want Confirm", m.flow.step)
+	}
+	m = typed(m, "nope")
+	m = press(m, tea.Key{Code: tea.KeyEnter})
+	if m.flow.step != stepConfirm {
+		t.Fatal("a wrong confirmation word must not start the action")
+	}
+	if !strings.Contains(m.render(), "EMPTY") {
+		t.Fatal("the confirmation word is not shown")
+	}
+}
+
+func TestActionWithInputsAsksForThemBeforeReview(t *testing.T) {
+	m := sized(app.Services{})
+	for i, e := range m.entries {
+		if e.id == "repair.dism" {
+			m.cursor = i
+		}
+	}
+	m = press(m, tea.Key{Code: tea.KeyEnter})
+	if m.flow == nil || m.flow.step != stepParams {
+		t.Fatal("DISM should first ask for its stage")
+	}
+	m = press(m, tea.Key{Code: tea.KeyEnter}) // accept the default "scan"
+	if m.flow.step != stepReview || !strings.Contains(m.render(), "ScanHealth") {
+		t.Fatalf("expected Review of the scan stage, got step %v", m.flow.step)
 	}
 }

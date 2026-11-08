@@ -7,10 +7,12 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
+	"github.com/MatheusCampagnolo/wintonicz/internal/actions"
 	"github.com/MatheusCampagnolo/wintonicz/internal/app"
 	"github.com/MatheusCampagnolo/wintonicz/internal/catalog"
 	"github.com/MatheusCampagnolo/wintonicz/internal/config"
 	"github.com/MatheusCampagnolo/wintonicz/internal/privilege"
+	"github.com/MatheusCampagnolo/wintonicz/internal/runner"
 	"github.com/charmbracelet/x/ansi"
 )
 
@@ -22,7 +24,9 @@ const (
 // toolOrder is the sidebar order. Tools missing from this list still appear, after it.
 var toolOrder = []string{
 	"inspect.system", "inspect.processes", "inspect.ports", "inspect.services", "inspect.keyservices", "inspect.usb", "inspect.diskhealth", "inspect.security", "inspect.startup", "inspect.programs",
-	"inspect.storage", "inspect.resources", "net.status", "net.quick", "net.check", "net.flushdns", "win.panels", "settings.about",
+	"inspect.storage", "inspect.resources", "net.status", "net.quick", "net.check", "net.flushdns", "repair.sfc", "repair.dism", "repair.gpupdate", "repair.winget.list", "repair.winget",
+	"clean.temp", "clean.systemtemp", "clean.recyclebin", "clean.explorer", "tools.process.end",
+	"win.panels", "report.eventlogs", "report.download", "settings.about",
 }
 
 var areaOrder = []catalog.Area{catalog.AreaInspect, catalog.AreaNetwork, catalog.AreaRepair, catalog.AreaClean, catalog.AreaWindows, catalog.AreaReports, catalog.AreaSettings}
@@ -46,6 +50,7 @@ type model struct {
 	version  string
 	elevated bool
 	cfg      config.Config
+	specs    map[string]runner.Spec
 	entries  []entry
 	cursor   int
 	active   int
@@ -97,6 +102,7 @@ func newModel(services app.Services, version string) model {
 		version:  version,
 		elevated: privilege.IsElevated(),
 		cfg:      loadConfig(),
+		specs:    actions.Specs(services),
 		entries:  buildEntries(),
 		screens:  map[string]Screen{},
 		width:    100,
@@ -127,7 +133,7 @@ func (m *model) open(i int) tea.Cmd {
 	}
 	e := m.entries[i]
 	if e.tool != nil && e.tool.Kind == catalog.KindAction {
-		m.flow = newFlow(*e.tool, m.cfg)
+		m.flow = newFlow(*e.tool, m.cfg, m.specs, nil)
 		return nil
 	}
 	screen, ok := m.screens[e.id]
@@ -164,6 +170,9 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.width, m.height = msg.Width, msg.Height
 		return m, nil
 	case routedMsg:
+		if open, ok := msg.msg.(openActionMsg); ok {
+			return m.startAction(open)
+		}
 		if s, ok := m.screens[msg.id]; ok {
 			next, cmd := s.Update(msg.msg)
 			m.screens[msg.id] = next
@@ -249,7 +258,7 @@ func (m model) updateKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 			return m, elevateCmd()
 		}
 		return m, nil
-	case "1", "2", "3", "4", "5", "6":
+	case "1", "2", "3", "4", "5", "6", "7", "8":
 		return m.jumpToArea(int(key[0] - '1'))
 	}
 	if m.focus == focusSidebar {
@@ -538,7 +547,7 @@ func (m model) statusBar() string {
 	case m.help:
 		hints = []hint{{"any key", "close"}}
 	case m.focus == focusSidebar:
-		hints = []hint{{"↑↓", "move"}, {"enter", "open"}, {"1-5", "area"}, {"^K", "search"}, {"?", "help"}}
+		hints = []hint{{"↑↓", "move"}, {"enter", "open"}, {"1-8", "area"}, {"^K", "search"}, {"?", "help"}}
 		if !m.elevated {
 			hints = append(hints, hint{"a", "admin"})
 		}
@@ -561,7 +570,7 @@ func (m model) statusBar() string {
 func helpText() string {
 	return strings.Join([]string{
 		strong("Move"), "  ↑↓ or j k   move        enter or → open        esc or ← back to tools",
-		"  1–5         jump to an area        tab  switch between tools and content", "",
+		"  1–8         jump to an area        tab  switch between tools and content", "",
 		strong("Anywhere"), "  ^K  search every tool (try \"no internet\")    ?  this help",
 		"  a   restart as administrator (one UAC prompt)    q  quit", "",
 		strong("In lists"), "  /  filter    r  refresh    esc  clear filter", "",
@@ -576,4 +585,15 @@ func helpText() string {
 func loadConfig() config.Config {
 	cfg, _ := config.Load() // a damaged file falls back to defaults
 	return cfg
+}
+
+// startAction opens the action flow for a tool, with optional pre-filled inputs.
+func (m model) startAction(open openActionMsg) (tea.Model, tea.Cmd) {
+	for _, e := range m.entries {
+		if e.id == open.toolID && e.tool != nil {
+			m.flow = newFlow(*e.tool, m.cfg, m.specs, open.preset)
+			return m, nil
+		}
+	}
+	return m, nil
 }

@@ -19,10 +19,11 @@ type tableConfig[T any] struct {
 	load     func() ([]T, error)
 	row      func(T) []string
 	detail   func(T) string
-	match    func(T, string) bool // nil disables the / filter
-	enter    func(T) tea.Cmd      // optional primary action
-	enterKey string               // status-bar label for enter
-	note     string               // always-visible explanatory line under the table
+	match    func(T, string) bool   // nil disables the / filter
+	enter    func(T) tea.Cmd        // optional primary action
+	enterKey string                 // status-bar label for enter
+	note     string                 // always-visible explanatory line under the table
+	extra    map[string]extraKey[T] // additional single-key actions on the selected row
 }
 
 type loadedMsg[T any] struct {
@@ -90,6 +91,9 @@ func (t *tableScreen[T]) Hints() []hint {
 	}
 	if t.cfg.match != nil {
 		hints = append(hints, hint{"/", "filter"})
+	}
+	for key, x := range t.cfg.extra {
+		hints = append(hints, hint{key, x.label})
 	}
 	return append(hints, hint{"r", "refresh"})
 }
@@ -174,6 +178,10 @@ func (t *tableScreen[T]) navigate(msg tea.KeyPressMsg) tea.Cmd {
 	case "enter":
 		if t.cfg.enter != nil && t.cursor < len(t.visible) {
 			return t.cfg.enter(t.visible[t.cursor])
+		}
+	default:
+		if x, ok := t.cfg.extra[msg.String()]; ok && t.cursor < len(t.visible) {
+			return x.fn(t.visible[t.cursor])
 		}
 	}
 	t.cursor = max(0, min(t.cursor, len(t.visible)-1))
@@ -277,4 +285,10 @@ func (t *tableScreen[T]) Details(w int) string {
 		return ""
 	}
 	return wrap(t.cfg.detail(t.visible[t.cursor]), w)
+}
+
+// extraKey is a labelled single-key action on the selected row (for example "e" end process).
+type extraKey[T any] struct {
+	label string
+	fn    func(T) tea.Cmd
 }

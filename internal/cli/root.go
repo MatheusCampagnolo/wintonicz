@@ -54,11 +54,12 @@ func NewRootCommand(version string, runTUI func() error, services app.Services) 
 		newSecurityCommand(services),
 		newStartupCommand(services),
 		newProgramCommand(services),
-		newToolsCommand(),
+		newToolsCommand(services),
 		newConfigCommand(),
 		newPinCommand(),
 		newUnpinCommand(),
 	)
+	registerActions(root, services)
 	return root
 }
 

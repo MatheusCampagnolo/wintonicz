@@ -11,3 +11,5 @@ func SystemExe(string) (string, error) { return "", errWindowsOnly }
 func validateExe(string) error { return errWindowsOnly }
 
 func decodeOEM(b []byte) string { return string(b) }
+
+func WingetExe() (string, error) { return "", errWindowsOnly }

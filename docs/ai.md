@@ -60,3 +60,7 @@ Failures use the same shape with `"ok": false` and an `error` object (`code`, `m
 ## Preferences
 
 `wintonicz config get|set|path|reset`. Keys: `readOnly`, `jsonDefault`, `actionLog`, `defaultArea`, `alwaysAdmin`. Environment overrides: `WTZ_READ_ONLY=1`, `WTZ_JSON=1`, `WTZ_ADMIN=0|1`. `alwaysAdmin` is on by default and only affects opening the interface; subcommands never elevate.
+
+## Destructive tools
+
+`clean temp`, `clean systemtemp`, `clean recyclebin`, and `process end` delete data or stop programs. Their `--dry-run` output lists what would be touched (file counts and sizes, the process name and path). Show that to the human and get approval for that exact preview before passing `--yes`; for `clean temp`, a later run can match different files than the preview did.

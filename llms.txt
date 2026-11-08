@@ -15,6 +15,7 @@ Run a command (arguments need the script-block form):
 - Prefer `--json`. Output is one document: `{schemaVersion, ok, tool, command, data, warnings, error, meta}`. Check `ok` first. Errors are in the same envelope on stdout.
 - Read tools never change the system. Actions need `--yes`; without it they print a preview and exit 4. `--dry-run` always previews and exits 0.
 - Never pass `--yes` for risk `change` or `destructive` unless the human approved that specific action.
+- Destructive tools (`clean ...`, `process end`) list what they will touch in `--dry-run`; show that to the human first.
 - Exit codes: 0 ok, 1 error, 2 usage, 3 needs administrator, 4 not run (preview, declined, read-only), 10 the underlying command failed.
 - If `error.code` is `needs_admin`, ask the human; elevation opens a UAC prompt.
 - `--read-only` (or `WTZ_READ_ONLY=1`) refuses every action. `WTZ_JSON=1` makes JSON the default.

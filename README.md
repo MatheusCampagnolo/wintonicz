@@ -58,6 +58,14 @@ go build ./...
 ./bin/wintonicz.exe startup list
 ./bin/wintonicz.exe program list
 ./bin/wintonicz.exe network quick
+
+# Repairs, cleanup, reports: each previews first; add --yes to run (administrator where noted)
+./bin/wintonicz.exe repair sfc --dry-run
+./bin/wintonicz.exe repair dism --stage scan --dry-run
+./bin/wintonicz.exe clean temp --dry-run
+./bin/wintonicz.exe process end 1234 --dry-run
+./bin/wintonicz.exe report eventlogs --dry-run
+./bin/wintonicz.exe report download https://example.com/file.zip --sha256 <hash> --dry-run
 ./bin/wintonicz.exe panel list
 ./bin/wintonicz.exe panel open <key>
 ./bin/wintonicz.exe network flushdns --dry-run
