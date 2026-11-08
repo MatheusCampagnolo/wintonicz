@@ -18,7 +18,7 @@ Pass commands with the script-block form (`irm | iex` cannot forward arguments):
 & ([scriptblock]::Create((irm https://raw.githubusercontent.com/MatheusCampagnolo/wintonicz/main/scripts/run.ps1))) port find 8080 --json
 ```
 
-Options: `-Version 0.2.0` (pin), `-Admin` (start elevated), `-NoCache`, `-ClearCache`, `-Refresh`. Read the script before you run it — `irm <url>` prints it — and see its header comment for details. Remove everything Wintonicz stored with `-ClearCache`.
+Options: `-Version 0.2.0` (pin), `-Admin` (start elevated), `-NoCache`, `-NoUpdate` (skip the newer-version check), `-ClearCache`. Each run checks for a newer release first and downloads it silently when there is one. Read the script before you run it — `irm <url>` prints it — and see its header comment for details. Remove everything Wintonicz stored with `-ClearCache`.
 
 ## Project direction
 

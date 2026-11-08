@@ -10,11 +10,11 @@
     Behavior:
       * The first run downloads the release executable for this CPU, verifies its SHA-256
         digest against the release's checksums.txt, and stores it in
-        %LOCALAPPDATA%\Wintonicz\cache\<version>\wintonicz.exe. Later runs start from the
-        cache and need no network access when a version is already cached.
+        %LOCALAPPDATA%\Wintonicz\cache\<version>\wintonicz.exe. Every run first asks GitHub for the newest release (one small request); a newer one is
+        downloaded and verified once, otherwise the cached copy starts. Offline, the newest cached copy runs.
       * Nothing is installed: no PATH change, no profile edit, no service, no registry write.
       * A half-downloaded or hash-mismatched file is never executed.
-      * "latest" is looked up at most once every 24 hours; pin a version to skip the lookup.
+      * Pin a version (-Version) or use -NoUpdate to skip the lookup.
 
     Passing arguments through `irm | iex` is not possible. Use the script-block form instead:
 
@@ -39,19 +39,23 @@
 .PARAMETER ClearCache
     Delete the Wintonicz cache and exit.
 
+.PARAMETER NoUpdate
+    Do not look for a newer release; run the newest cached version (falls back to a lookup when nothing is cached).
+
 .PARAMETER Refresh
-    Ignore the 24-hour "latest" stamp and look up the newest release now.
+    Obsolete: the newest release is checked on every run.
 
 .PARAMETER WtzArgs
     Everything else is passed to wintonicz.exe unchanged.
 #>
-[CmdletBinding()]
+[CmdletBinding(PositionalBinding = $false)]
 param(
     [string]$Version = $env:WTZ_VERSION,
     [switch]$Admin,
     [switch]$NoCache,
     [switch]$ClearCache,
-    [switch]$Refresh,
+    [switch]$Refresh,   # kept for compatibility; the newest release is now checked on every run
+    [switch]$NoUpdate,
     [Parameter(ValueFromRemainingArguments = $true)]
     [string[]]$WtzArgs
 )
@@ -64,7 +68,7 @@ $ProgressPreference = 'SilentlyContinue'   # hides the progress bar; also makes 
 
 $WtzOwner = 'MatheusCampagnolo'
 $WtzRepo = 'wintonicz'
-$WtzLatestStampHours = 24
+
 
 function Write-Wtz([string]$Message) {
     Write-Host "wintonicz: $Message" -ForegroundColor DarkGray
@@ -106,33 +110,28 @@ function Invoke-WtzDownload([string]$Uri, [string]$OutFile) {
     Invoke-WebRequest @params | Out-Null
 }
 
+function Get-WtzCachedVersion([string]$CacheRoot) {
+    if (-not (Test-Path -LiteralPath $CacheRoot)) { return $null }
+    $local = Get-ChildItem -LiteralPath $CacheRoot -Directory -ErrorAction SilentlyContinue |
+        Where-Object { Test-Path -LiteralPath (Join-Path $_.FullName 'wintonicz.exe') } |
+        Sort-Object LastWriteTime -Descending | Select-Object -First 1
+    if ($local) { $local.Name } else { $null }
+}
+
 function Get-WtzLatestVersion([string]$CacheRoot) {
-    $stamp = Join-Path $CacheRoot 'latest.txt'
-    if (-not $Refresh -and (Test-Path -LiteralPath $stamp)) {
-        $age = (Get-Date) - (Get-Item -LiteralPath $stamp).LastWriteTime
-        $cached = (Get-Content -LiteralPath $stamp -TotalCount 1).Trim()
-        if ($age.TotalHours -lt $WtzLatestStampHours -and $cached -and (Test-Path -LiteralPath (Join-Path $CacheRoot "$cached\wintonicz.exe"))) {
-            return $cached
-        }
-    }
+    $cached = Get-WtzCachedVersion $CacheRoot
+    if ($NoUpdate -and $cached) { return $cached }
     try {
-        # The releases list includes prereleases, unlike /releases/latest.
+        # Checked on every run (one small request, short timeout). The releases list includes
+        # prereleases, unlike /releases/latest.
         $headers = @{ 'User-Agent' = 'wintonicz-launcher'; 'Accept' = 'application/vnd.github+json' }
-        $releases = Invoke-RestMethod -Uri "https://api.github.com/repos/$WtzOwner/$WtzRepo/releases?per_page=5" -Headers $headers
+        $releases = Invoke-RestMethod -Uri "https://api.github.com/repos/$WtzOwner/$WtzRepo/releases?per_page=5" -Headers $headers -TimeoutSec 8
         $release = $releases | Where-Object { -not $_.draft } | Select-Object -First 1
         if (-not $release) { Stop-Wtz 'no published release was found.' }
-        $found = ([string]$release.tag_name).TrimStart('v')
-        New-Item -ItemType Directory -Path $CacheRoot -Force | Out-Null
-        Set-Content -LiteralPath $stamp -Value $found -Encoding ASCII
-        return $found
+        return ([string]$release.tag_name).TrimStart('v')
     } catch {
-        # Offline or rate limited: fall back to the newest cached version.
-        if (Test-Path -LiteralPath $CacheRoot) {
-            $local = Get-ChildItem -LiteralPath $CacheRoot -Directory -ErrorAction SilentlyContinue |
-                Where-Object { Test-Path -LiteralPath (Join-Path $_.FullName 'wintonicz.exe') } |
-                Sort-Object LastWriteTime -Descending | Select-Object -First 1
-            if ($local) { return $local.Name }
-        }
+        # Offline or rate limited: keep working with the newest cached version.
+        if ($cached) { return $cached }
         Stop-Wtz "could not look up the newest release ($($_.Exception.Message)). Check your connection or pass -Version."
     }
 }
@@ -198,7 +197,8 @@ function Invoke-Wintonicz {
     $exe = Join-Path $targetDirectory 'wintonicz.exe'
     try {
         if (-not (Test-Path -LiteralPath $exe)) {
-            Write-Wtz "preparing $ver (first run only)..."
+            $have = Get-WtzCachedVersion $cacheRoot
+            if ($have -and -not $NoCache) { Write-Wtz "updating $have -> $ver..." } else { Write-Wtz "preparing $ver (first run only)..." }
             $exe = Install-WtzRelease $ver $arch $targetDirectory
         }
 
@@ -229,7 +229,7 @@ try {
     $ErrorActionPreference = $script:WtzSavedErrorAction
     $ProgressPreference = $script:WtzSavedProgress
     foreach ($name in 'Write-Wtz', 'Stop-Wtz', 'Get-WtzCacheRoot', 'Get-WtzArchitecture', 'Test-WtzAdministrator',
-                      'Get-WtzDownloadBase', 'Invoke-WtzDownload', 'Get-WtzLatestVersion', 'Install-WtzRelease', 'Invoke-Wintonicz') {
+                      'Get-WtzDownloadBase', 'Invoke-WtzDownload', 'Get-WtzCachedVersion', 'Get-WtzLatestVersion', 'Install-WtzRelease', 'Invoke-Wintonicz') {
         Remove-Item -LiteralPath "Function:\$name" -ErrorAction SilentlyContinue
     }
 }
