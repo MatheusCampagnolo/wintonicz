@@ -189,7 +189,7 @@ func writeResourceSummary(w io.Writer, snapshot resources.Snapshot) error {
 
 func writeDiskCheckPreview(w io.Writer, preview support.DiskCheckPreview) error {
 	_, err := fmt.Fprintf(w,
-		"Action preview\nCommand: %s\nPurpose: %s\nFilesystem changes: none requested\nAdministrator privileges: required\nRestart: not expected\nNote: %s\nNo command was run. Rerun with --yes to execute.\n",
+		"Action preview\nCommand: %s\nPurpose: %s\nFilesystem changes: none requested\nAdministrator privileges: required\nRestart: not expected\nNote: %s\nNo command was run. Rerun with --yes to request UAC approval and execute.\n",
 		preview.Command,
 		preview.Purpose,
 		preview.Notes,

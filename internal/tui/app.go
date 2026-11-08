@@ -62,10 +62,14 @@ type keyMap struct {
 	erase        key.Binding
 	menu         bool
 	editing      bool
+	running      bool
 	page         page
 }
 
 func (k keyMap) ShortHelp() []key.Binding {
+	if k.running {
+		return []key.Binding{k.help}
+	}
 	if k.menu {
 		bindings := []key.Binding{k.navigate, k.open, k.back}
 		if k.page == homePage {
@@ -90,6 +94,9 @@ func (k keyMap) ShortHelp() []key.Binding {
 }
 
 func (k keyMap) FullHelp() [][]key.Binding {
+	if k.running {
+		return [][]key.Binding{{k.help}}
+	}
 	if k.menu {
 		if k.page != homePage {
 			return [][]key.Binding{{k.navigate, k.open, k.back}, {k.help, k.quit}}
@@ -141,11 +148,9 @@ type model struct {
 	resourceSnapshot    *resources.Snapshot
 	diskCheckOutput     viewport.Model
 	diskCheckTarget     string
-	diskCheckConfirm    bool
 	diskCheckRunning    bool
 	diskCheckResult     *support.DiskCheckResult
 	diskCheckErr        error
-	diskCheckCancel     context.CancelFunc
 	width               int
 	height              int
 	loading             bool
@@ -247,10 +252,6 @@ func (m model) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 		m.diskCheckRunning = false
-		if m.diskCheckCancel != nil {
-			m.diskCheckCancel()
-			m.diskCheckCancel = nil
-		}
 		m.diskCheckErr = message.err
 		if message.err == nil {
 			m.diskCheckResult = &message.result
@@ -310,22 +311,10 @@ func (m model) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		}
 
-		if m.diskCheckConfirm {
-			switch message.String() {
-			case "ctrl+c", "q":
-				return m, tea.Quit
-			case "enter":
-				return m, m.beginDiskCheck()
-			case "esc", "backspace":
-				m.diskCheckConfirm = false
-				m.diskCheckTarget = ""
-				return m, nil
-			default:
+		if isBackNavigationKey(message) {
+			if m.diskCheckRunning {
 				return m, nil
 			}
-		}
-
-		if isBackNavigationKey(message) {
 			return m.goBack()
 		}
 		if m.page == diskCheckPage && m.diskCheckResult != nil {
@@ -339,7 +328,9 @@ func (m model) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 
 		switch message.String() {
 		case "q", "ctrl+c":
-			m.cancelDiskCheck()
+			if m.diskCheckRunning {
+				return m, nil
+			}
 			return m, tea.Quit
 		case "?":
 			m.help.ShowAll = !m.help.ShowAll
@@ -359,8 +350,7 @@ func (m model) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 			if m.page == diskCheckPage && !m.diskCheckRunning && m.diskCheckResult == nil {
 				selected := m.table.SelectedRow()
 				if len(selected) > 0 {
-					m.diskCheckTarget = selected[0]
-					m.diskCheckConfirm = true
+					return m, m.beginDiskCheck(selected[0])
 				}
 			}
 		case "r":
@@ -371,7 +361,6 @@ func (m model) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 				if m.page == diskCheckPage {
 					m.diskCheckResult = nil
 					m.diskCheckErr = nil
-					m.diskCheckConfirm = false
 				}
 				m.loading = true
 				m.err = nil
@@ -452,6 +441,7 @@ func (m model) activeKeys() keyMap {
 	keys := m.keys
 	keys.menu = isMenuPage(m.page)
 	keys.editing = m.filtering || m.connectivityPrompt
+	keys.running = m.diskCheckRunning
 	keys.page = m.page
 	if keys.editing {
 		keys.back = key.NewBinding(key.WithKeys("esc"), key.WithHelp("esc", "cancel"))
@@ -474,7 +464,6 @@ func (m model) pushPage(next page) (tea.Model, tea.Cmd) {
 	m.err = nil
 	m.notice = ""
 	if next == diskCheckPage {
-		m.diskCheckConfirm = false
 		m.diskCheckRunning = false
 		m.diskCheckResult = nil
 		m.diskCheckErr = nil
@@ -487,13 +476,8 @@ func (m model) pushPage(next page) (tea.Model, tea.Cmd) {
 }
 
 func (m model) goBack() (tea.Model, tea.Cmd) {
-	if m.diskCheckConfirm {
-		m.diskCheckConfirm = false
-		m.diskCheckTarget = ""
+	if m.diskCheckRunning {
 		return m, nil
-	}
-	if m.diskCheckCancel != nil {
-		m.cancelDiskCheck()
 	}
 	if len(m.navigation) <= 1 {
 		return m, nil
@@ -639,29 +623,17 @@ func (m model) loadPage() tea.Cmd {
 	}
 }
 
-func (m *model) beginDiskCheck() tea.Cmd {
-	ctx, cancel := context.WithCancel(context.Background())
-	m.diskCheckCancel = cancel
-	m.diskCheckConfirm = false
+func (m *model) beginDiskCheck(drive string) tea.Cmd {
 	m.diskCheckRunning = true
 	m.diskCheckErr = nil
 	m.diskCheckResult = nil
-	drive := m.diskCheckTarget
+	m.diskCheckTarget = drive
 	source := m.services.Support
 	return func() tea.Msg {
-		result, err := source.RunDiskCheck(ctx, drive)
+		result, err := source.RunDiskCheck(context.Background(), drive)
 		return diskCheckFinishedMsg{drive: drive, result: result, err: err}
 	}
 }
-
-func (m *model) cancelDiskCheck() {
-	if m.diskCheckCancel != nil {
-		m.diskCheckCancel()
-		m.diskCheckCancel = nil
-	}
-	m.diskCheckRunning = false
-}
-
 func (m *model) setTableRows() {
 	var columns []table.Column
 	var rows []table.Row

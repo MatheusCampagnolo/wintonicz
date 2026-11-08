@@ -2,11 +2,14 @@ package support
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 
 	"github.com/MatheusCampagnolo/wintonicz/internal/storage"
 )
+
+var ErrElevationCancelled = errors.New("administrator approval was cancelled")
 
 type DiskCheckResult struct {
 	Drive      string `json:"drive"`

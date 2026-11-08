@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
@@ -327,9 +328,9 @@ func (m model) menuPreview(item menuItem) []string {
 	case resourcesPage:
 		entries = []string{"Measure CPU activity over a 500 ms sample", "Show used, available, and total physical memory", "Snapshot only; this is not continuous monitoring"}
 	case supportAreaPage:
-		entries = []string{"Preview the exact disk-check command", "Run only after explicit confirmation", "No repair or restart options are requested"}
+		entries = []string{"Select a drive to view the exact disk-check command", "Press Enter once to request UAC and run the check", "No repair or restart options are requested"}
 	case diskCheckPage:
-		entries = []string{"Select a fixed or removable drive", "Review the command before running it", "Scroll through the completed Windows output"}
+		entries = []string{"Select a fixed or removable drive", "Press Enter once to request UAC and run CHKDSK", "View output in the temporary elevated console"}
 	}
 	lines := make([]string, 0, len(entries))
 	for _, entry := range entries {
@@ -510,25 +511,14 @@ func (m model) diskCheckView() string {
 		return lipgloss.JoinVertical(lipgloss.Left,
 			pageSectionTitle("READ-ONLY DISK CHECK"),
 			"Running "+support.DiskCheckCommand(m.diskCheckTarget)+"...",
-			"No repair switches are used. Avoid interrupting the check; Esc cancels and returns.",
+			"No repair switches are used. Keep Wintonicz open until the elevated check returns its result.",
 		)
 	}
 	if m.diskCheckErr != nil {
+		if errors.Is(m.diskCheckErr, support.ErrElevationCancelled) {
+			return lipgloss.NewStyle().Foreground(mutedTextColor).Render("No check was run; administrator approval was cancelled. Esc returns to Support.")
+		}
 		return lipgloss.NewStyle().Foreground(errorTextColor).Render("Disk check could not run: " + m.diskCheckErr.Error())
-	}
-	if m.diskCheckConfirm {
-		preview := support.NewDiskCheckPreview(m.diskCheckTarget)
-		return lipgloss.JoinVertical(lipgloss.Left,
-			pageSectionTitle("REVIEW BEFORE RUNNING"),
-			renderPanel("COMMAND", preview.Command, max(48, m.width-4), true),
-			"Purpose: "+preview.Purpose,
-			"Filesystem changes: no repair options are requested.",
-			"Administrator privileges: required.",
-			"Restart: not expected.",
-			"Note: "+preview.Notes,
-			"",
-			"Press Enter to run or Esc to cancel.",
-		)
 	}
 	if m.diskCheckResult != nil {
 		result := m.diskCheckResult
@@ -543,7 +533,7 @@ func (m model) diskCheckView() string {
 		return lipgloss.JoinVertical(lipgloss.Left,
 			pageSectionTitle("DISK CHECK RESULT · "+strings.ToUpper(status)),
 			fmt.Sprintf("Command: %s · Exit code: %d · Duration: %d ms", result.Command, result.ExitCode, result.DurationMS),
-			lipgloss.NewStyle().Foreground(mutedTextColor).Render("Use ↑/↓ or Page Up/Page Down to scroll. Esc returns to Support."),
+			lipgloss.NewStyle().Foreground(mutedTextColor).Render("Esc returns to Support."),
 			m.diskCheckOutput.View(),
 		)
 	}
@@ -552,10 +542,22 @@ func (m model) diskCheckView() string {
 	}
 	main := lipgloss.JoinVertical(lipgloss.Left,
 		pageSectionTitle("SELECT A DRIVE TO CHECK"),
-		"Choose a drive to preview the read-only command.",
+		"Choose a drive and press Enter to run the read-only check.",
 		m.table.View(),
 	)
-	return m.detailLayout(main, "ABOUT THIS CHECK", "Checks filesystem status only. No repair switches are included.\n\nPress Enter to review the command before it runs.")
+	selected := m.table.SelectedRow()
+	details := "Checks filesystem status only. No repair switches are included."
+	if len(selected) > 0 {
+		preview := support.NewDiskCheckPreview(selected[0])
+		details = strings.Join([]string{
+			"Drive: " + preview.Drive,
+			"Command: " + preview.Command,
+			"No repair options or restart are requested.",
+			"An active drive may show inconclusive errors.",
+			"Press Enter to run. UAC approval is requested if needed.",
+		}, "\n")
+	}
+	return m.detailLayout(main, "ABOUT THIS CHECK", details)
 }
 
 func (m model) diskCheckRows() []storage.Volume {
