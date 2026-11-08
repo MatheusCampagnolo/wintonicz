@@ -44,3 +44,28 @@ func init() {
 	support.Phase, gp.Phase = "6", "6"
 	tools = append(tools, support, gp)
 }
+
+// Phase 7: reversible changes. Each writes a prior-state record first and can be
+// reversed with `undo` (a restore point is rolled back with System Restore).
+func init() {
+	list := action("power.list", AreaWindows, "Power plans", "Lists the power plans on this PC and marks the active one.",
+		RiskRead, AdminNone, DurationInstant, true, false, []string{"power", "list"}, "battery", "sleep", "performance")
+	set := action("power.set", AreaWindows, "Switch power plan", "Switches between Balanced, High performance, and Power saver. Records the previous plan so it can be undone.",
+		RiskChange, AdminOptional, DurationInstant, true, false, []string{"power", "set"}, "slow laptop", "battery drains", "high performance")
+	pref := action("win.explorer.pref", AreaWindows, "Explorer preferences", "Shows or hides file name extensions and hidden files for your account. Records the previous value.",
+		RiskChange, AdminNone, DurationInstant, true, false, []string{"explorer", "pref"}, "file extensions", "hidden files", "show extensions")
+	point := action("repair.restorepoint", AreaRepair, "Create restore point", "Asks System Restore for a snapshot before you change something risky. Windows allows one per 24 hours.",
+		RiskChange, AdminRequired, DurationSeconds, false, false, []string{"repair", "restorepoint"}, "system restore", "backup", "before changes")
+	wu := action("repair.wureset", AreaRepair, "Reset Windows Update", "Renames SoftwareDistribution and catroot2 so Windows rebuilds them. Nothing is deleted; undo puts them back.",
+		RiskChange, AdminRequired, DurationSeconds, true, false, []string{"repair", "wureset"}, "windows update stuck", "update error", "update failed")
+	reset := action("net.reset", AreaNetwork, "Reset network stack", "Saves your network configuration, then resets Winsock and TCP/IP. Needs a restart.",
+		RiskChange, AdminRequired, DurationSeconds, true, true, []string{"network", "reset"}, "no internet", "winsock", "network broken")
+	undoList := action("undo.list", AreaRepair, "Change history", "Lists the changes Wintonicz recorded and whether each can still be undone.",
+		RiskRead, AdminNone, DurationInstant, true, false, []string{"undo", "list"}, "history", "what changed")
+	undo := action("undo", AreaRepair, "Undo a change", "Reverses a recorded change (power plan, Explorer preference, update reset, network reset). Default: the newest.",
+		RiskChange, AdminOptional, DurationSeconds, true, false, []string{"undo"}, "revert", "rollback", "undo")
+	for _, t := range []*Tool{&list, &set, &pref, &point, &wu, &reset, &undoList, &undo} {
+		t.Phase = "7"
+	}
+	tools = append(tools, list, set, pref, point, wu, reset, undoList, undo)
+}

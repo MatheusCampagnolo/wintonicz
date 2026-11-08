@@ -64,6 +64,8 @@ go build ./...
 ./bin/wintonicz.exe report gpresult --dry-run
 
 # Repairs, cleanup, reports: each previews first; add --yes to run (administrator where noted)
+./bin/wintonicz.exe power set saver --dry-run   # records the old plan; `undo` switches back
+./bin/wintonicz.exe undo list --yes
 ./bin/wintonicz.exe repair sfc --dry-run
 ./bin/wintonicz.exe repair dism --stage scan --dry-run
 ./bin/wintonicz.exe clean temp --dry-run
@@ -107,7 +109,7 @@ If Windows denies access to the TCP listener table, `port list` and the TCP Port
 - Storage inventory lists logical drives with type, capacity, and free space available to the current user.
 - Resource snapshots sample CPU over about 500 ms; they are not continuous monitoring.
 - Windows panel shortcuts are an allowlist; availability differs by Windows edition and version.
-- System-changing tools and repairs are not available yet. (A CHKDSK-based "disk check" existed briefly and was removed; read-only disk health is planned instead.)
+- Repairs, cleanup, and reversible changes ask for confirmation, show the exact command first, and write what they changed to `%LOCALAPPDATA%\Wintonicz\undo`. `wintonicz undo` reverses the newest one (restore points are rolled back with System Restore). They are alpha: several have not been run on a clean VM yet. (A CHKDSK-based "disk check" existed briefly and was removed; read-only disk health replaced it.)
 
 ## Tests
 

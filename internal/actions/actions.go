@@ -4,6 +4,7 @@ package actions
 
 import (
 	"github.com/MatheusCampagnolo/wintonicz/internal/app"
+	"github.com/MatheusCampagnolo/wintonicz/internal/change"
 	"github.com/MatheusCampagnolo/wintonicz/internal/maint"
 	"github.com/MatheusCampagnolo/wintonicz/internal/network"
 	"github.com/MatheusCampagnolo/wintonicz/internal/processes"
@@ -22,6 +23,9 @@ func Specs(s app.Services, version string) map[string]runner.Spec {
 		specs[id] = spec
 	}
 	for id, spec := range report.Specs(s, version) {
+		specs[id] = spec
+	}
+	for id, spec := range change.Specs() {
 		specs[id] = spec
 	}
 	return specs

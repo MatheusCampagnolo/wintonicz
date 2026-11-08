@@ -69,3 +69,4 @@ Failures use the same shape with `"ok": false` and an `error` object (`code`, `m
 
 - `why <pid|name|:port> --json` returns `reasons[]`, each with `confidence: confirmed|inferred`. Treat `inferred` as a hypothesis and report it as one. `limits[]` lists what the current account could not read.
 - `report support` and `report gpresult` write to a local file only. Redaction masks user name, computer name, IPv4/IPv6, and MAC by default (`--redact none` disables it and the preview says so). Masking is pattern-based; tell the human to review the file before sharing it.
+- Reversible changes (`power set`, `explorer pref`, `repair wureset`, `network reset`) record their prior state in `%LOCALAPPDATA%\Wintonicz\undo`. Run `undo list` to see it and `undo [id]` to reverse one. `repair restorepoint` is rolled back with System Restore. Always `--dry-run` first and show the human the preview; `network reset` needs a restart afterward.
