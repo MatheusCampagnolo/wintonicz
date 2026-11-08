@@ -85,6 +85,12 @@ var tools = []Tool{
 	read("inspect.storage", AreaInspect, "Storage", "Logical drives with type, free space, and total capacity.", AdminNone, []string{"storage", "list"}, "disk full", "free space"),
 	read("inspect.resources", AreaInspect, "Resources", "CPU load over a short sample and physical memory use.", AdminNone, []string{"resource", "snapshot"}, "slow", "high cpu", "out of memory"),
 	read("net.status", AreaNetwork, "Network status", "Adapters with addresses, gateways, DNS servers, MTU, and MAC.", AdminNone, []string{"network", "status"}, "no internet", "ip address", "ipconfig"),
+	read("inspect.keyservices", AreaInspect, "Key services", "Twelve services that explain common problems (network, updates, printing, sound, security), with why each matters.", AdminNone, []string{"service", "list", "--key"}, "printer not working", "no sound", "windows update stuck"),
+	read("inspect.diskhealth", AreaInspect, "Disk health", "Health status Windows reports for each physical disk (SSD, HDD, USB).", AdminNone, []string{"storage", "health"}, "disk failing", "slow disk", "smart"),
+	read("inspect.security", AreaInspect, "Security status", "Antivirus products and firewall profiles as Windows Security Center reports them.", AdminNone, []string{"security", "status"}, "antivirus", "defender", "firewall"),
+	read("inspect.startup", AreaInspect, "Startup apps", "Programs set to start with Windows or at sign-in (Run keys and Startup folders).", AdminNone, []string{"startup", "list"}, "slow boot", "slow startup"),
+	read("inspect.programs", AreaInspect, "Installed programs", "Desktop programs listed in Windows' uninstall registry keys, with version and publisher.", AdminNone, []string{"program", "list"}, "what is installed", "uninstall"),
+	read("net.quick", AreaNetwork, "Quick internet check", "Walks from your adapter to the internet in four steps and says where it breaks. Contacts example.com and 1.1.1.1 only.", AdminNone, []string{"network", "quick"}, "no internet", "wifi connected no internet", "dns"),
 	read("net.check", AreaNetwork, "Connectivity check", "DNS resolution and one TCP connection to a host and port you choose.", AdminNone, []string{"network", "check"}, "no internet", "cannot reach server"),
 	{ID: "win.panels", Area: AreaWindows, Title: "Windows panels", Summary: "Open built-in Windows settings and management panels.", Kind: KindLaunch,
 		Risk: RiskLaunch, Admin: AdminNone, Duration: DurationInstant, Reversible: true, Command: []string{"panel", "list"}, Phase: "1",
@@ -152,4 +158,13 @@ func Search(query string) []Tool {
 		out[i] = hit.tool
 	}
 	return out
+}
+
+func init() {
+	for i := range tools {
+		switch tools[i].ID {
+		case "inspect.keyservices", "inspect.diskhealth", "inspect.security", "inspect.startup", "inspect.programs", "net.quick":
+			tools[i].Phase = "4"
+		}
+	}
 }

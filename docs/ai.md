@@ -59,4 +59,4 @@ Failures use the same shape with `"ok": false` and an `error` object (`code`, `m
 
 ## Preferences
 
-`wintonicz config get|set|path|reset`. Keys: `readOnly`, `jsonDefault`, `actionLog`, `defaultArea`. Environment overrides: `WTZ_READ_ONLY=1`, `WTZ_JSON=1`.
+`wintonicz config get|set|path|reset`. Keys: `readOnly`, `jsonDefault`, `actionLog`, `defaultArea`, `alwaysAdmin`. Environment overrides: `WTZ_READ_ONLY=1`, `WTZ_JSON=1`, `WTZ_ADMIN=0|1`. `alwaysAdmin` is on by default and only affects opening the interface; subcommands never elevate.

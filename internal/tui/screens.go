@@ -9,12 +9,15 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/MatheusCampagnolo/wintonicz/internal/app"
+	"github.com/MatheusCampagnolo/wintonicz/internal/diskhealth"
 	"github.com/MatheusCampagnolo/wintonicz/internal/network"
 	"github.com/MatheusCampagnolo/wintonicz/internal/panels"
 	"github.com/MatheusCampagnolo/wintonicz/internal/ports"
 	"github.com/MatheusCampagnolo/wintonicz/internal/privilege"
 	"github.com/MatheusCampagnolo/wintonicz/internal/processes"
+	"github.com/MatheusCampagnolo/wintonicz/internal/programs"
 	"github.com/MatheusCampagnolo/wintonicz/internal/services"
+	"github.com/MatheusCampagnolo/wintonicz/internal/startup"
 	"github.com/MatheusCampagnolo/wintonicz/internal/storage"
 	"github.com/MatheusCampagnolo/wintonicz/internal/usb"
 )
@@ -156,6 +159,105 @@ func buildScreen(id string, s app.Services, version string) Screen {
 					return noticeMsg{text: "Opened " + e.Name + "."}
 				}
 			},
+		})
+	case "inspect.keyservices":
+		return newTableWithMatch(tableConfig[services.Entry]{
+			title: "KEY SERVICES", noun: "key services",
+			columns: []column{{"SERVICE", 20}, {"STATE", 14}, {"PID", 7}, {"DISPLAY NAME", 0}},
+			load: func() ([]services.Entry, error) {
+				all, err := s.Services.ListServices()
+				if err != nil {
+					return nil, err
+				}
+				return services.Key(all), nil
+			},
+			row: func(e services.Entry) []string {
+				return []string{e.Name, e.State, strconv.FormatUint(uint64(e.PID), 10), e.DisplayName}
+			},
+			detail: func(e services.Entry) string {
+				return fmt.Sprintf("%s\n%s\nState: %s\n\nWhy it matters:\n%s\n\nRead-only. To change a service, open the Services panel from Windows panels.", e.DisplayName, e.Name, e.State, services.WhyKey(e.Name))
+			},
+		})
+	case "inspect.diskhealth":
+		return newTableWithMatch(tableConfig[diskhealth.Disk]{
+			title: "DISK HEALTH", noun: "physical disks",
+			columns: []column{{"DISK", 28}, {"TYPE", 12}, {"BUS", 7}, {"HEALTH", 12}, {"SIZE", 0}},
+			load:    func() ([]diskhealth.Disk, error) { return s.DiskHealth.ListDiskHealth() },
+			row: func(d diskhealth.Disk) []string {
+				return []string{d.Name, d.MediaType, d.BusType, d.Verdict(), formatBytes(d.SizeBytes)}
+			},
+			detail: func(d diskhealth.Disk) string {
+				return fmt.Sprintf("%s\n%s · %s · %s\nStatus: %s\n\nThis is the health the storage stack reports. It is not a surface scan and cannot predict every failure; keep backups.", d.Name, d.MediaType, d.BusType, formatBytes(d.SizeBytes), d.Operational)
+			},
+		})
+	case "inspect.security":
+		return newInfo("Security status", "security status", func() ([]string, error) {
+			st, err := s.Security.SecurityStatus()
+			if err != nil {
+				return nil, err
+			}
+			lines := []string{strong("Antivirus")}
+			if len(st.Antivirus) == 0 {
+				lines = append(lines, "  "+warn("!")+" No product is registered with Windows Security Center.")
+			}
+			for _, p := range st.Antivirus {
+				mark := okText("✓")
+				if p.State != "on" || p.Signatures == "out of date" {
+					mark = warn("!")
+				}
+				lines = append(lines, fmt.Sprintf("  %s %s — %s, signatures %s", mark, p.Name, p.State, p.Signatures))
+			}
+			lines = append(lines, "", strong("Firewall"))
+			for _, f := range st.Firewall {
+				mark, state := okText("✓"), "on"
+				if !f.Enabled {
+					mark, state = warn("!"), "off"
+				}
+				lines = append(lines, fmt.Sprintf("  %s %s profile — %s", mark, f.Profile, state))
+			}
+			return append(lines, "", muted("Data comes from Windows Security Center. Third-party products and managed PCs may report stale or no data.")), nil
+		})
+	case "inspect.startup":
+		return newTableWithMatch(tableConfig[startup.Entry]{
+			title: "STARTUP APPS", noun: "startup items",
+			columns: []column{{"NAME", 30}, {"SCOPE", 8}, {"LOCATION", 24}, {"COMMAND", 0}},
+			load:    func() ([]startup.Entry, error) { return s.Startup.ListStartup() },
+			row:     func(e startup.Entry) []string { return []string{e.Name, e.Scope, e.Location, e.Command} },
+			detail: func(e startup.Entry) string {
+				return fmt.Sprintf("%s\nScope: %s\nWhere: %s\n\nCommand:\n%s\n\nRead-only. Disable items in Task Manager → Startup apps.", e.Name, e.Scope, e.Location, e.Command)
+			},
+		})
+	case "inspect.programs":
+		return newTableWithMatch(tableConfig[programs.Program]{
+			title: "INSTALLED PROGRAMS", noun: "programs",
+			columns: []column{{"NAME", 40}, {"VERSION", 16}, {"PUBLISHER", 24}, {"SCOPE", 0}},
+			load:    func() ([]programs.Program, error) { return s.Programs.ListPrograms() },
+			row:     func(p programs.Program) []string { return []string{p.Name, p.Version, p.Publisher, p.Scope} },
+			detail: func(p programs.Program) string {
+				size := "unknown"
+				if p.SizeKB > 0 {
+					size = formatBytes(uint64(p.SizeKB) * 1024)
+				}
+				return fmt.Sprintf("%s\nVersion: %s\nPublisher: %s\nInstalled: %s\nSize: %s\nFor: %s", p.Name, orUnavailable(p.Version), orUnavailable(p.Publisher), orUnavailable(p.InstallDate), size, p.Scope)
+			},
+		})
+	case "net.quick":
+		return newInfo("Quick internet check", "quick check", func() ([]string, error) {
+			adapters, err := s.Network.NetworkAdapters()
+			if err != nil {
+				return nil, err
+			}
+			result := network.QuickCheck(context.Background(), adapters)
+			lines := []string{strong("From your adapter outward")}
+			for _, step := range result.Steps {
+				mark := okText("✓")
+				if !step.OK {
+					mark = danger("✗")
+				}
+				lines = append(lines, fmt.Sprintf("  %s %-24s %s (%d ms)", mark, step.Name, step.Detail, step.DurationMS))
+			}
+			return append(lines, "", strong("Reading"), wrap("  "+result.Diagnosis, 70), "",
+				muted("Contacted: "+network.QuickTargets.DNSName+" (DNS), "+network.QuickTargets.IPv4+" and "+network.QuickTargets.WebHost+" (TCP). Press r to run again.")), nil
 		})
 	case "net.check":
 		return &connectScreen{}

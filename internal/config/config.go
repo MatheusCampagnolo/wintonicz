@@ -23,11 +23,13 @@ type Config struct {
 	ActionLog bool `json:"actionLog"`
 	// DefaultArea is the TUI's opening area: home, inspect, network, or windows.
 	DefaultArea string `json:"defaultArea"`
+	// AlwaysAdmin makes the interface restart itself as administrator at launch (one UAC prompt).
+	AlwaysAdmin bool `json:"alwaysAdmin"`
 }
 
 // Default returns the built-in preferences.
 func Default() Config {
-	return Config{ActionLog: true, DefaultArea: "home"}
+	return Config{ActionLog: true, DefaultArea: "home", AlwaysAdmin: true}
 }
 
 var areas = []string{"home", "inspect", "network", "repair", "clean", "windows", "reports", "settings"}
@@ -64,6 +66,12 @@ func Load() (Config, error) {
 	if os.Getenv("WTZ_READ_ONLY") == "1" {
 		cfg.ReadOnly = true
 	}
+	if os.Getenv("WTZ_ADMIN") == "0" {
+		cfg.AlwaysAdmin = false
+	}
+	if os.Getenv("WTZ_ADMIN") == "1" {
+		cfg.AlwaysAdmin = true
+	}
 	if os.Getenv("WTZ_JSON") == "1" {
 		cfg.JSONDefault = true
 	}
@@ -88,7 +96,7 @@ func Save(cfg Config) error {
 
 // Keys lists the settable keys.
 func Keys() []string {
-	keys := []string{"readOnly", "jsonDefault", "actionLog", "defaultArea"}
+	keys := []string{"readOnly", "jsonDefault", "actionLog", "defaultArea", "alwaysAdmin"}
 	sort.Strings(keys)
 	return keys
 }
@@ -104,6 +112,8 @@ func Get(cfg Config, key string) (string, error) {
 		return strconv.FormatBool(cfg.ActionLog), nil
 	case "defaultArea":
 		return cfg.DefaultArea, nil
+	case "alwaysAdmin":
+		return strconv.FormatBool(cfg.AlwaysAdmin), nil
 	}
 	return "", unknownKey(key)
 }
@@ -125,6 +135,8 @@ func Set(cfg *Config, key, value string) error {
 		return setBool(&cfg.JSONDefault)
 	case "actionLog":
 		return setBool(&cfg.ActionLog)
+	case "alwaysAdmin":
+		return setBool(&cfg.AlwaysAdmin)
 	case "defaultArea":
 		value = strings.ToLower(strings.TrimSpace(value))
 		for _, area := range areas {

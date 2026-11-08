@@ -60,11 +60,33 @@ func sized(services app.Services) model {
 }
 
 func TestSidebarListsAreasAndRiskBadges(t *testing.T) {
-	view := sized(app.Services{}).render()
-	for _, want := range []string{"INSPECT", "NETWORK", "WINDOWS", "Processes", "Flush DNS", "[CA]", "[R ]", "standard user"} {
+	m := sized(app.Services{})
+	m.elevated = false // CI runners are administrators; the test must not depend on who runs it
+	view := m.render()
+	for _, want := range []string{"INSPECT", "NETWORK", "WINDOWS", "SETTINGS", "standard user"} {
 		if !strings.Contains(view, want) {
-			t.Errorf("view is missing %q", want)
+			t.Errorf("collapsed sidebar is missing %q", want)
 		}
+	}
+	if strings.Contains(view, "Processes") {
+		t.Error("tools of a collapsed area should be hidden")
+	}
+	for i, e := range m.entries {
+		switch e.id {
+		case "inspect.processes":
+			m.cursor = i
+		}
+	}
+	if view := m.render(); !strings.Contains(view, "Processes") || !strings.Contains(view, "[R ]") {
+		t.Error("the selected tool's area should be expanded with its badge")
+	}
+	for i, e := range m.entries {
+		if e.id == "net.flushdns" {
+			m.cursor = i
+		}
+	}
+	if view := m.render(); !strings.Contains(view, "Flush DNS") || !strings.Contains(view, "[CA]") {
+		t.Error("network area should expand and show the admin-required badge")
 	}
 }
 

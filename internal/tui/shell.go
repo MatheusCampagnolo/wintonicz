@@ -2,6 +2,7 @@ package tui
 
 import (
 	"errors"
+	"fmt"
 	"strings"
 
 	tea "charm.land/bubbletea/v2"
@@ -20,8 +21,8 @@ const (
 
 // toolOrder is the sidebar order. Tools missing from this list still appear, after it.
 var toolOrder = []string{
-	"inspect.system", "inspect.processes", "inspect.ports", "inspect.services", "inspect.usb",
-	"inspect.storage", "inspect.resources", "net.status", "net.check", "net.flushdns", "win.panels", "settings.about",
+	"inspect.system", "inspect.processes", "inspect.ports", "inspect.services", "inspect.keyservices", "inspect.usb", "inspect.diskhealth", "inspect.security", "inspect.startup", "inspect.programs",
+	"inspect.storage", "inspect.resources", "net.status", "net.quick", "net.check", "net.flushdns", "win.panels", "settings.about",
 }
 
 var areaOrder = []catalog.Area{catalog.AreaInspect, catalog.AreaNetwork, catalog.AreaRepair, catalog.AreaClean, catalog.AreaWindows, catalog.AreaReports, catalog.AreaSettings}
@@ -352,7 +353,7 @@ func (m model) modal(title string, content func(w, h int) string, bodyH int) str
 }
 
 func (m model) layout(bodyH int) string {
-	sideW := 24
+	sideW := 26
 	if m.width < 80 {
 		sideW = 20
 	}
@@ -384,17 +385,37 @@ func (m model) layout(bodyH int) string {
 	return lipgloss.JoinHorizontal(lipgloss.Top, sidebar, content)
 }
 
+// sidebarBody draws Home plus one heading per area. Only the area holding the
+// selected tool is expanded, so the list stays short however many tools exist.
 func (m model) sidebarBody(w, h int) string {
+	idx := m.cursor
+	if m.focus == focusContent {
+		idx = m.active
+	}
+	var open catalog.Area
+	if idx >= 0 && idx < len(m.entries) {
+		open = m.entries[idx].area
+	}
+	counts := map[catalog.Area]int{}
+	for _, e := range m.entries {
+		counts[e.area]++
+	}
 	var lines []string
 	cursorLine := 0
 	var lastArea catalog.Area
 	for i, e := range m.entries {
 		if e.area != "" && e.area != lastArea {
-			if len(lines) > 0 {
-				lines = append(lines, "")
-			}
-			lines = append(lines, muted(strings.ToUpper(string(e.area))))
 			lastArea = e.area
+			title := fmt.Sprintf("%s %s", map[bool]string{true: "▾", false: "▸"}[e.area == open], strings.ToUpper(string(e.area)))
+			count := fmt.Sprintf(" %d", counts[e.area])
+			if e.area == open {
+				lines = append(lines, accent(fit(title, w-len(count)))+muted(count))
+			} else {
+				lines = append(lines, muted(fit(title, w-len(count))+count))
+			}
+		}
+		if e.area != "" && e.area != open {
+			continue
 		}
 		badge := "    "
 		if e.tool != nil {

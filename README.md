@@ -52,6 +52,12 @@ go build ./...
 ./bin/wintonicz.exe usb list
 ./bin/wintonicz.exe storage list
 ./bin/wintonicz.exe resource snapshot
+./bin/wintonicz.exe service list --key
+./bin/wintonicz.exe storage health
+./bin/wintonicz.exe security status
+./bin/wintonicz.exe startup list
+./bin/wintonicz.exe program list
+./bin/wintonicz.exe network quick
 ./bin/wintonicz.exe panel list
 ./bin/wintonicz.exe panel open <key>
 ./bin/wintonicz.exe network flushdns --dry-run
@@ -60,7 +66,9 @@ go build ./...
 
 Add `--json` to structured commands. `panel open` launches only a fixed, listed Windows panel — never an arbitrary executable or shell string. `service list` is read-only and never starts, stops, or reconfigures a service.
 
-Every `--json` call prints one document: `{schemaVersion: 2, ok, tool, command, data, error, meta}`; failures use the same shape on stdout. Exit codes: 0 ok, 1 error, 2 usage, 3 needs administrator, 4 not run (preview, declined, read-only), 10 the Windows command failed. `wintonicz tools list --json` describes every tool; see [docs/ai.md](docs/ai.md) and [llms.txt](llms.txt). Preferences: `wintonicz config get|set` (`readOnly`, `jsonDefault`, `actionLog`, `defaultArea`).
+Every `--json` call prints one document: `{schemaVersion: 2, ok, tool, command, data, error, meta}`; failures use the same shape on stdout. Exit codes: 0 ok, 1 error, 2 usage, 3 needs administrator, 4 not run (preview, declined, read-only), 10 the Windows command failed. `wintonicz tools list --json` describes every tool; see [docs/ai.md](docs/ai.md) and [llms.txt](llms.txt). Preferences: `wintonicz config get|set` (`readOnly`, `jsonDefault`, `actionLog`, `defaultArea`, `alwaysAdmin`).
+
+**Administrator:** by default the interface restarts itself as administrator at launch (one UAC prompt, new window). A declined prompt continues as a normal user. To stay as your normal user: `wintonicz --no-admin`, `WTZ_ADMIN=0`, or `wintonicz config set alwaysAdmin false`. Subcommands such as `port list` never elevate on their own.
 
 `wintonicz pin --yes` (opt-in) copies the executable to `%LOCALAPPDATA%Wintoniczbin` and adds that folder to your user PATH; `wintonicz unpin --yes` reverses it.
 

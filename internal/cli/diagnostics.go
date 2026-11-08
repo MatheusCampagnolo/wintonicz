@@ -11,6 +11,7 @@ import (
 	"github.com/MatheusCampagnolo/wintonicz/internal/network"
 	"github.com/MatheusCampagnolo/wintonicz/internal/ports"
 	"github.com/MatheusCampagnolo/wintonicz/internal/processes"
+	"github.com/MatheusCampagnolo/wintonicz/internal/services"
 	"github.com/spf13/cobra"
 )
 
@@ -107,7 +108,7 @@ func newSystemCommand(services app.Services) *cobra.Command {
 
 func newServiceCommand(deps app.Services) *cobra.Command {
 	command := &cobra.Command{Use: "service", Short: "Inspect Windows services", Args: cobra.NoArgs}
-	var asJSON bool
+	var asJSON, keyOnly bool
 	list := &cobra.Command{
 		Use:   "list",
 		Short: "List Windows services and their current state",
@@ -117,6 +118,9 @@ func newServiceCommand(deps app.Services) *cobra.Command {
 			if err != nil {
 				return fmt.Errorf("list Windows services: %w", err)
 			}
+			if keyOnly {
+				entries = services.Key(entries)
+			}
 			if asJSON {
 				return writeJSON(cmd.OutOrStdout(), "service list", entries)
 			}
@@ -124,6 +128,7 @@ func newServiceCommand(deps app.Services) *cobra.Command {
 		},
 	}
 	list.Flags().BoolVar(&asJSON, "json", jsonDefault(), "Write structured JSON output")
+	list.Flags().BoolVar(&keyOnly, "key", false, "Only the curated key services that explain common problems")
 	command.AddCommand(list)
 	return command
 }
@@ -170,7 +175,7 @@ func newStorageCommand(deps app.Services) *cobra.Command {
 		},
 	}
 	list.Flags().BoolVar(&asJSON, "json", jsonDefault(), "Write structured JSON output")
-	command.AddCommand(list)
+	command.AddCommand(list, newStorageHealthCommand(deps))
 	return command
 }
 
@@ -235,7 +240,7 @@ func newNetworkCommand(services app.Services) *cobra.Command {
 	}
 	check.Flags().DurationVar(&timeout, "timeout", 3*time.Second, "Maximum duration for DNS and TCP checks (max 30s)")
 	check.Flags().BoolVar(&checkJSON, "json", jsonDefault(), "Write structured JSON output")
-	command.AddCommand(status, check, newFlushDNSCommand())
+	command.AddCommand(status, check, newFlushDNSCommand(), newQuickCheckCommand(services))
 	return command
 }
 

@@ -29,6 +29,11 @@ var panelCatalog = []panels.Entry{
 	{Key: "task-manager", Name: "Task Manager", Description: "Inspect running applications, processes, and resource usage."},
 	{Key: "disk-management", Name: "Disk Management", Description: "View disks, partitions, and volumes."},
 	{Key: "disk-cleanup", Name: "Disk Cleanup", Description: "Open the built-in utility for reviewing removable system files."},
+	{Key: "system-information", Name: "System Information", Description: "Detailed hardware and software summary (msinfo32)."},
+	{Key: "device-manager", Name: "Device Manager", Description: "Hardware devices and their drivers."},
+	{Key: "powershell", Name: "PowerShell (new window)", Description: "Open Windows PowerShell in its own window."},
+	{Key: "command-prompt", Name: "Command Prompt (new window)", Description: "Open cmd in its own window."},
+	{Key: "powershell-admin", Name: "PowerShell as administrator", Description: "Open an elevated PowerShell window after a UAC prompt."},
 }
 
 type panelTarget struct {
@@ -56,6 +61,11 @@ var panelTargets = map[string]panelTarget{
 	"task-manager":         {"taskmgr.exe", nil},
 	"disk-management":      {"mmc.exe", []string{"diskmgmt.msc"}},
 	"disk-cleanup":         {"cleanmgr.exe", nil},
+	"system-information":   {"msinfo32.exe", nil},
+	"device-manager":       {"mmc.exe", []string{"devmgmt.msc"}},
+	"powershell":           {"cmd.exe", []string{"/c", "start", "", "powershell.exe"}},
+	"command-prompt":       {"cmd.exe", []string{"/c", "start", "", "cmd.exe"}},
+	"powershell-admin":     {"powershell.exe", []string{"-NoProfile", "-WindowStyle", "Hidden", "-Command", "Start-Process powershell.exe -Verb RunAs"}},
 }
 
 func (Collector) ListPanels() []panels.Entry {
