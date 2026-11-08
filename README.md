@@ -58,6 +58,10 @@ go build ./...
 ./bin/wintonicz.exe startup list
 ./bin/wintonicz.exe program list
 ./bin/wintonicz.exe network quick
+./bin/wintonicz.exe network ping 1.1.1.1 -n 4
+./bin/wintonicz.exe why explorer          # also: why 1234, why --port 8080
+./bin/wintonicz.exe report support --dry-run   # md/txt/json, redacted by default
+./bin/wintonicz.exe report gpresult --dry-run
 
 # Repairs, cleanup, reports: each previews first; add --yes to run (administrator where noted)
 ./bin/wintonicz.exe repair sfc --dry-run

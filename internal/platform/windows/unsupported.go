@@ -4,6 +4,8 @@ package windows
 
 import (
 	"errors"
+	"net"
+	"time"
 
 	"github.com/MatheusCampagnolo/wintonicz/internal/diskhealth"
 	"github.com/MatheusCampagnolo/wintonicz/internal/network"
@@ -18,6 +20,7 @@ import (
 	"github.com/MatheusCampagnolo/wintonicz/internal/storage"
 	"github.com/MatheusCampagnolo/wintonicz/internal/system"
 	"github.com/MatheusCampagnolo/wintonicz/internal/usb"
+	"github.com/MatheusCampagnolo/wintonicz/internal/why"
 )
 
 var errWindowsOnly = errors.New("this diagnostic is currently available only on Windows")
@@ -68,3 +71,9 @@ func (Collector) ListDiskHealth() ([]diskhealth.Disk, error) { return nil, errWi
 func (Collector) SecurityStatus() (security.Status, error)   { return security.Status{}, errWindowsOnly }
 func (Collector) ListStartup() ([]startup.Entry, error)      { return nil, errWindowsOnly }
 func (Collector) ListPrograms() ([]programs.Program, error)  { return nil, errWindowsOnly }
+
+func (Collector) Ping(net.IP, time.Duration) (network.PingResult, error) {
+	return network.PingResult{}, errWindowsOnly
+}
+
+func (Collector) ProcessChain(uint32) ([]why.Process, string, error) { return nil, "", errWindowsOnly }

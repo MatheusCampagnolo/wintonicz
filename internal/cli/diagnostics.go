@@ -240,7 +240,7 @@ func newNetworkCommand(services app.Services) *cobra.Command {
 	}
 	check.Flags().DurationVar(&timeout, "timeout", 3*time.Second, "Maximum duration for DNS and TCP checks (max 30s)")
 	check.Flags().BoolVar(&checkJSON, "json", jsonDefault(), "Write structured JSON output")
-	command.AddCommand(status, check, newQuickCheckCommand(services))
+	command.AddCommand(status, check, newQuickCheckCommand(services), newPingCommand(services))
 	return command
 }
 

@@ -39,14 +39,18 @@ func (Collector) NetworkAdapters() ([]network.Adapter, error) {
 		gateways := append([]string{}, details.gateways...)
 		dnsServers := append([]string{}, details.dnsServers...)
 		result = append(result, network.Adapter{
-			Index:      adapter.Index,
-			Name:       adapter.Name,
-			Status:     status,
-			MTU:        max(0, adapter.MTU),
-			MAC:        adapter.HardwareAddr.String(),
-			Addresses:  items,
-			Gateways:   gateways,
-			DNSServers: dnsServers,
+			Index:       adapter.Index,
+			Name:        adapter.Name,
+			Status:      status,
+			MTU:         max(0, adapter.MTU),
+			MAC:         adapter.HardwareAddr.String(),
+			Addresses:   items,
+			Gateways:    gateways,
+			DNSServers:  dnsServers,
+			DHCPEnabled: details.dhcp,
+			DHCPServer:  details.dhcpServer,
+			DNSSuffix:   details.dnsSuffix,
+			SpeedMbps:   details.speedMbps,
 		})
 	}
 

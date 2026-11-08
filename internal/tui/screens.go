@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	tea "charm.land/bubbletea/v2"
@@ -16,10 +17,12 @@ import (
 	"github.com/MatheusCampagnolo/wintonicz/internal/privilege"
 	"github.com/MatheusCampagnolo/wintonicz/internal/processes"
 	"github.com/MatheusCampagnolo/wintonicz/internal/programs"
+	"github.com/MatheusCampagnolo/wintonicz/internal/security"
 	"github.com/MatheusCampagnolo/wintonicz/internal/services"
 	"github.com/MatheusCampagnolo/wintonicz/internal/startup"
 	"github.com/MatheusCampagnolo/wintonicz/internal/storage"
 	"github.com/MatheusCampagnolo/wintonicz/internal/usb"
+	"github.com/MatheusCampagnolo/wintonicz/internal/why"
 )
 
 func rowMatch[T any](row func(T) []string) func(T, string) bool {
@@ -264,6 +267,10 @@ func buildScreen(id string, s app.Services, version string) Screen {
 			return append(lines, "", strong("Reading"), wrap("  "+result.Diagnosis, 70), "",
 				muted("Contacted: "+network.QuickTargets.DNSName+" (DNS), "+network.QuickTargets.IPv4+" and "+network.QuickTargets.WebHost+" (TCP). Press r to run again.")), nil
 		})
+	case "inspect.why":
+		return newWhyScreen(why.Deps{Processes: s.Processes, Ports: s.Ports, Services: s.Services, Startup: s.Startup, Chain: s.Chain})
+	case "net.ping":
+		return newPingScreen(s.Pinger)
 	case "net.check":
 		return &connectScreen{}
 	}
@@ -419,6 +426,50 @@ func homeLines(s app.Services) func() ([]string, error) {
 			}
 		} else {
 			lines = append(lines, "  "+danger("unavailable: "+err.Error()))
+		}
+		// Slower checks run in parallel; each failure is simply skipped (the dashboard is a hint, not an audit).
+		var disks []diskhealth.Disk
+		var sec security.Status
+		var secErr error
+		var svc []services.Entry
+		var wg sync.WaitGroup
+		wg.Add(3)
+		go func() { defer wg.Done(); disks, _ = s.DiskHealth.ListDiskHealth() }()
+		go func() { defer wg.Done(); sec, secErr = s.Security.SecurityStatus() }()
+		go func() {
+			defer wg.Done()
+			if all, err := s.Services.ListServices(); err == nil {
+				svc = services.Key(all)
+			}
+		}()
+		wg.Wait()
+		for _, d := range disks {
+			if d.Health != "" && d.Health != "Healthy" {
+				attention = append(attention, fmt.Sprintf("Disk %s reports %s. Back up your files.", d.Name, strings.ToLower(d.Health)))
+			}
+		}
+		if secErr == nil {
+			if len(sec.Antivirus) == 0 {
+				attention = append(attention, "No antivirus is registered with Windows Security Center.")
+			}
+			for _, p := range sec.Antivirus {
+				if p.State == "off" {
+					attention = append(attention, p.Name+" is turned off.")
+				} else if p.Signatures == "out of date" {
+					attention = append(attention, p.Name+" signatures are out of date.")
+				}
+			}
+			for _, f := range sec.Firewall {
+				if !f.Enabled {
+					attention = append(attention, "Firewall is off for the "+f.Profile+" profile.")
+				}
+			}
+		}
+		critical := map[string]bool{"Dhcp": true, "Dnscache": true, "EventLog": true, "RpcSs": true, "mpssvc": true}
+		for _, e := range svc {
+			if critical[e.Name] && e.State != "Running" && e.State != "not installed" {
+				attention = append(attention, fmt.Sprintf("Service %s is %s.", e.DisplayName, strings.ToLower(e.State)))
+			}
 		}
 		if !privilege.IsElevated() {
 			attention = append(attention, "Running as a standard user: some tools show limited data.")

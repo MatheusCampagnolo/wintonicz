@@ -34,3 +34,13 @@ func init() {
 			RiskChange, AdminNone, DurationSeconds, true, false, []string{"report", "download"}, "download", "checksum", "hash"),
 	)
 }
+
+// Phase 6 reports.
+func init() {
+	support := action("report.support", AreaReports, "Support report", "Writes one file with system, disk, network, security, startup, programs, and ports. Redacts user, host, IP, and MAC by default. Stays on this PC.",
+		RiskChange, AdminOptional, DurationSeconds, true, false, []string{"report", "support"}, "send to support", "diagnostics report", "export")
+	gp := action("report.gpresult", AreaReports, "Group Policy report", "Saves the Group Policy result as an HTML file, redacted. Computer policy needs administrator.",
+		RiskChange, AdminOptional, DurationSeconds, true, false, []string{"report", "gpresult"}, "gpo", "group policy", "gpresult")
+	support.Phase, gp.Phase = "6", "6"
+	tools = append(tools, support, gp)
+}

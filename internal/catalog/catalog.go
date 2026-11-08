@@ -90,6 +90,8 @@ var tools = []Tool{
 	read("inspect.security", AreaInspect, "Security status", "Antivirus products and firewall profiles as Windows Security Center reports them.", AdminNone, []string{"security", "status"}, "antivirus", "defender", "firewall"),
 	read("inspect.startup", AreaInspect, "Startup apps", "Programs set to start with Windows or at sign-in (Run keys and Startup folders).", AdminNone, []string{"startup", "list"}, "slow boot", "slow startup"),
 	read("inspect.programs", AreaInspect, "Installed programs", "Desktop programs listed in Windows' uninstall registry keys, with version and publisher.", AdminNone, []string{"program", "list"}, "what is installed", "uninstall"),
+	read("inspect.why", AreaInspect, "Why is this running?", "Explains why a process exists: who started it, which service or startup entry owns it, and what it listens on. Says what is confirmed and what is inferred.", AdminOptional, []string{"why"}, "what is this process", "unknown process", "suspicious", "why is this running"),
+	read("net.ping", AreaNetwork, "Ping", "Sends ICMP echo requests to a host and shows round-trip time, loss, and a live graph. IPv4 only.", AdminNone, []string{"network", "ping"}, "latency", "lag", "packet loss", "ping"),
 	read("net.quick", AreaNetwork, "Quick internet check", "Walks from your adapter to the internet in four steps and says where it breaks. Contacts example.com and 1.1.1.1 only.", AdminNone, []string{"network", "quick"}, "no internet", "wifi connected no internet", "dns"),
 	read("net.check", AreaNetwork, "Connectivity check", "DNS resolution and one TCP connection to a host and port you choose.", AdminNone, []string{"network", "check"}, "no internet", "cannot reach server"),
 	{ID: "win.panels", Area: AreaWindows, Title: "Windows panels", Summary: "Open built-in Windows settings and management panels.", Kind: KindLaunch,
@@ -163,7 +165,7 @@ func Search(query string) []Tool {
 func init() {
 	for i := range tools {
 		switch tools[i].ID {
-		case "inspect.keyservices", "inspect.diskhealth", "inspect.security", "inspect.startup", "inspect.programs", "net.quick":
+		case "inspect.keyservices", "inspect.diskhealth", "inspect.security", "inspect.startup", "inspect.programs", "net.quick", "net.ping", "inspect.why":
 			tools[i].Phase = "4"
 		}
 	}

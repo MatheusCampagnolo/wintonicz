@@ -23,10 +23,10 @@ const (
 
 // toolOrder is the sidebar order. Tools missing from this list still appear, after it.
 var toolOrder = []string{
-	"inspect.system", "inspect.processes", "inspect.ports", "inspect.services", "inspect.keyservices", "inspect.usb", "inspect.diskhealth", "inspect.security", "inspect.startup", "inspect.programs",
-	"inspect.storage", "inspect.resources", "net.status", "net.quick", "net.check", "net.flushdns", "repair.sfc", "repair.dism", "repair.gpupdate", "repair.winget.list", "repair.winget",
+	"inspect.system", "inspect.processes", "inspect.why", "inspect.ports", "inspect.services", "inspect.keyservices", "inspect.usb", "inspect.diskhealth", "inspect.security", "inspect.startup", "inspect.programs",
+	"inspect.storage", "inspect.resources", "net.status", "net.quick", "net.ping", "net.check", "net.flushdns", "repair.sfc", "repair.dism", "repair.gpupdate", "repair.winget.list", "repair.winget",
 	"clean.temp", "clean.systemtemp", "clean.recyclebin", "clean.explorer", "tools.process.end",
-	"win.panels", "report.eventlogs", "report.download", "settings.about",
+	"win.panels", "report.support", "report.gpresult", "report.eventlogs", "report.download", "settings.about",
 }
 
 var areaOrder = []catalog.Area{catalog.AreaInspect, catalog.AreaNetwork, catalog.AreaRepair, catalog.AreaClean, catalog.AreaWindows, catalog.AreaReports, catalog.AreaSettings}
@@ -102,7 +102,7 @@ func newModel(services app.Services, version string) model {
 		version:  version,
 		elevated: privilege.IsElevated(),
 		cfg:      loadConfig(),
-		specs:    actions.Specs(services),
+		specs:    actions.Specs(services, version),
 		entries:  buildEntries(),
 		screens:  map[string]Screen{},
 		width:    100,
@@ -127,6 +127,12 @@ func (m model) Init() tea.Cmd {
 
 // open makes entry i the active tool: shows its screen (refreshing data) or, for
 // action tools, starts the action flow.
+func (m *model) stopActive() {
+	if s, ok := m.activeScreen().(Stopper); ok {
+		s.Stop()
+	}
+}
+
 func (m *model) open(i int) tea.Cmd {
 	if i < 0 || i >= len(m.entries) {
 		return nil
@@ -143,6 +149,9 @@ func (m *model) open(i int) tea.Cmd {
 			return nil
 		}
 		m.screens[e.id] = screen
+	}
+	if i != m.active {
+		m.stopActive()
 	}
 	m.active, m.cursor, m.focus = i, i, focusContent
 	return route(e.id, screen.Init())
@@ -279,10 +288,12 @@ func (m model) updateKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	s := m.activeScreen()
 	switch key {
 	case "tab", "left", "h":
+		m.stopActive()
 		m.focus = focusSidebar
 		return m, nil
 	case "esc", "backspace":
 		if s == nil || !s.Dirty() {
+			m.stopActive()
 			m.focus = focusSidebar
 			return m, nil
 		}
@@ -484,7 +495,7 @@ func (m model) detailsBody(w int) string {
 	if m.focus == focusContent {
 		if s := m.activeScreen(); s != nil {
 			if d := s.Details(w); d != "" {
-				parts = append(parts, "", strings.Repeat("─", min(w, 30)), d)
+				parts = append(parts, "", strings.Repeat("─", min(w, 30)), wrap(d, w))
 			}
 		}
 	}

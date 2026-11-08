@@ -208,7 +208,7 @@ func newToolsCommand(services app.Services) *cobra.Command {
 			}
 			data := map[string]any{"tool": tool}
 			if tool.Kind == catalog.KindAction {
-				if spec, ok := actions.Specs(services)[tool.ID]; ok && len(spec.Params) == 0 {
+				if spec, ok := actions.Specs(services, buildVersion)[tool.ID]; ok && len(spec.Params) == 0 {
 					if plan, err := spec.Build(map[string]string{}); err == nil {
 						data["preview"] = plan.Preview
 					}

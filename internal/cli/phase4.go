@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io"
 	"text/tabwriter"
+	"time"
 
 	"github.com/MatheusCampagnolo/wintonicz/internal/app"
 	"github.com/MatheusCampagnolo/wintonicz/internal/network"
@@ -157,6 +158,62 @@ func newQuickCheckCommand(deps app.Services) *cobra.Command {
 			return nil
 		},
 	}
+	command.Flags().BoolVar(&asJSON, "json", jsonDefault(), "Write structured JSON output")
+	return command
+}
+
+func newPingCommand(deps app.Services) *cobra.Command {
+	var asJSON bool
+	var count int
+	var timeout time.Duration
+	command := &cobra.Command{
+		Use:   "ping <host>",
+		Short: "Send ICMP echo requests (IPv4) and show round-trip times",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if count < 1 || count > 100 {
+				return ExitError{Code: exitUsage, Err: fmt.Errorf("--count must be from 1 to 100")}
+			}
+			if timeout <= 0 || timeout > 10*time.Second {
+				return ExitError{Code: exitUsage, Err: fmt.Errorf("--timeout must be above 0 and at most 10s")}
+			}
+			ip, err := network.ResolveIPv4(args[0])
+			if err != nil {
+				return err
+			}
+			out := cmd.OutOrStdout()
+			var results []network.PingResult
+			for i := 1; i <= count; i++ {
+				if cmd.Context().Err() != nil {
+					break
+				}
+				r, err := deps.Pinger.Ping(ip, timeout)
+				if err != nil {
+					return err
+				}
+				r.Seq = i
+				results = append(results, r)
+				if !asJSON {
+					if r.OK {
+						fmt.Fprintf(out, "Reply from %s: time=%dms\n", r.Address, r.RTTMillis)
+					} else {
+						fmt.Fprintf(out, "%s: %s\n", r.Address, r.Status)
+					}
+				}
+				if i < count {
+					time.Sleep(time.Second)
+				}
+			}
+			stats := network.Summarize(results)
+			if asJSON {
+				return writeJSON(out, "network ping", map[string]any{"target": args[0], "address": ip.String(), "results": results, "stats": stats, "lossPercent": stats.LossPercent()})
+			}
+			fmt.Fprintf(out, "\n%d sent, %d received, %.0f%% loss; min/avg/max = %d/%d/%d ms\n", stats.Sent, stats.Received, stats.LossPercent(), stats.MinMS, stats.AvgMS, stats.MaxMS)
+			return nil
+		},
+	}
+	command.Flags().IntVarP(&count, "count", "n", 4, "Number of requests (1-100)")
+	command.Flags().DurationVar(&timeout, "timeout", 2*time.Second, "Wait per reply")
 	command.Flags().BoolVar(&asJSON, "json", jsonDefault(), "Write structured JSON output")
 	return command
 }

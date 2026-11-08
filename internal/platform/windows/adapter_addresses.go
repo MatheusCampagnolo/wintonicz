@@ -16,6 +16,10 @@ const adapterAddressBufferSize = 15 * 1024
 type adapterAddressDetails struct {
 	gateways   []string
 	dnsServers []string
+	dhcp       bool
+	dhcpServer string
+	dnsSuffix  string
+	speedMbps  uint64
 }
 
 func collectAdapterAddresses() (map[int]adapterAddressDetails, error) {
@@ -42,11 +46,16 @@ func collectAdapterAddresses() (map[int]adapterAddressDetails, error) {
 		for current := addresses; current != nil; current = current.Next {
 			gatewayAddresses := collectGatewayAddresses(current.FirstGatewayAddress)
 			dnsAddresses := collectDNSServerAddresses(current.FirstDnsServerAddress)
+			detail := adapterAddressDetails{gateways: gatewayAddresses, dnsServers: dnsAddresses,
+				dhcp: current.Flags&0x4 != 0, dnsSuffix: windows.UTF16PtrToString(current.DnsSuffix), speedMbps: current.TransmitLinkSpeed / 1_000_000}
+			if ip := current.Dhcpv4Server.IP(); ip != nil {
+				detail.dhcpServer = ip.String()
+			}
 			if current.IfIndex != 0 {
-				details[int(current.IfIndex)] = adapterAddressDetails{gateways: gatewayAddresses, dnsServers: dnsAddresses}
+				details[int(current.IfIndex)] = detail
 			}
 			if current.Ipv6IfIndex != 0 {
-				details[int(current.Ipv6IfIndex)] = adapterAddressDetails{gateways: gatewayAddresses, dnsServers: dnsAddresses}
+				details[int(current.Ipv6IfIndex)] = detail
 			}
 		}
 		runtime.KeepAlive(buffer)

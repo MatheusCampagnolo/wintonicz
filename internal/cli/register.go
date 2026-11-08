@@ -14,7 +14,7 @@ import (
 // registerActions adds one command per action tool, at the path its catalog entry gives.
 // Every action command has --dry-run, --yes, and --json and goes through runAction.
 func registerActions(root *cobra.Command, services app.Services) {
-	specs := actions.Specs(services)
+	specs := actions.Specs(services, buildVersion)
 	for _, tool := range catalog.All() {
 		spec, ok := specs[tool.ID]
 		if tool.Kind != catalog.KindAction || !ok || len(tool.Command) == 0 {

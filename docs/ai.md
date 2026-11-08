@@ -64,3 +64,8 @@ Failures use the same shape with `"ok": false` and an `error` object (`code`, `m
 ## Destructive tools
 
 `clean temp`, `clean systemtemp`, `clean recyclebin`, and `process end` delete data or stop programs. Their `--dry-run` output lists what would be touched (file counts and sizes, the process name and path). Show that to the human and get approval for that exact preview before passing `--yes`; for `clean temp`, a later run can match different files than the preview did.
+
+## Investigating and reporting
+
+- `why <pid|name|:port> --json` returns `reasons[]`, each with `confidence: confirmed|inferred`. Treat `inferred` as a hypothesis and report it as one. `limits[]` lists what the current account could not read.
+- `report support` and `report gpresult` write to a local file only. Redaction masks user name, computer name, IPv4/IPv6, and MAC by default (`--redact none` disables it and the preview says so). Masking is pattern-based; tell the human to review the file before sharing it.
