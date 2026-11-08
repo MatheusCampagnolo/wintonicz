@@ -26,6 +26,8 @@ func NewRootCommand(version string, runTUI func() error, services app.Services) 
 		},
 	}
 
+	buildVersion = version
+	root.PersistentFlags().Bool("read-only", false, "Refuse every action that would change the system")
 	root.SetVersionTemplate("Wintonicz {{.Version}}\n")
 	root.AddCommand(
 		newProcessCommand(services),
@@ -36,8 +38,11 @@ func NewRootCommand(version string, runTUI func() error, services app.Services) 
 		newStorageCommand(services),
 		newResourceCommand(services),
 		newNetworkCommand(services),
-		newSupportCommand(services),
 		newPanelCommand(services),
+		newToolsCommand(),
+		newConfigCommand(),
+		newPinCommand(),
+		newUnpinCommand(),
 	)
 	return root
 }

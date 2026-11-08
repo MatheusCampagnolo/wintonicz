@@ -1,7 +1,6 @@
 package cli
 
 import (
-	"encoding/json"
 	"fmt"
 	"io"
 	"strings"
@@ -14,22 +13,9 @@ import (
 	"github.com/MatheusCampagnolo/wintonicz/internal/resources"
 	"github.com/MatheusCampagnolo/wintonicz/internal/services"
 	"github.com/MatheusCampagnolo/wintonicz/internal/storage"
-	"github.com/MatheusCampagnolo/wintonicz/internal/support"
 	"github.com/MatheusCampagnolo/wintonicz/internal/system"
 	"github.com/MatheusCampagnolo/wintonicz/internal/usb"
 )
-
-type jsonEnvelope struct {
-	SchemaVersion int    `json:"schemaVersion"`
-	Command       string `json:"command"`
-	Data          any    `json:"data"`
-}
-
-func writeJSON(w io.Writer, command string, data any) error {
-	encoder := json.NewEncoder(w)
-	encoder.SetIndent("", "  ")
-	return encoder.Encode(jsonEnvelope{SchemaVersion: 1, Command: command, Data: data})
-}
 
 func writeProcessTable(w io.Writer, entries []processes.Entry) error {
 	if len(entries) == 0 {
@@ -184,32 +170,6 @@ func writeResourceSummary(w io.Writer, snapshot resources.Snapshot) error {
 		snapshot.MemoryPercent,
 		humanBytes(snapshot.MemoryAvailableBytes),
 	)
-	return err
-}
-
-func writeDiskCheckPreview(w io.Writer, preview support.DiskCheckPreview) error {
-	_, err := fmt.Fprintf(w,
-		"Action preview\nCommand: %s\nPurpose: %s\nFilesystem changes: none requested\nAdministrator privileges: required\nRestart: not expected\nNote: %s\nNo command was run. Rerun with --yes to request UAC approval and execute.\n",
-		preview.Command,
-		preview.Purpose,
-		preview.Notes,
-	)
-	return err
-}
-
-func writeDiskCheckResult(w io.Writer, result support.DiskCheckResult) error {
-	status := "completed"
-	if result.ExitCode != 0 {
-		status = "returned a nonzero status"
-	}
-	if _, err := fmt.Fprintf(w, "Command: %s\nStatus: %s (exit code %d)\nDuration: %d ms\n", result.Command, status, result.ExitCode, result.DurationMS); err != nil {
-		return err
-	}
-	if result.Output == "" {
-		_, err := fmt.Fprintln(w, "Windows returned no output.")
-		return err
-	}
-	_, err := fmt.Fprint(w, result.Output)
 	return err
 }
 

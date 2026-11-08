@@ -54,13 +54,14 @@ func TestPortFindWritesVersionedJSON(t *testing.T) {
 	}
 	var output struct {
 		SchemaVersion int              `json:"schemaVersion"`
+		OK            bool             `json:"ok"`
 		Command       string           `json:"command"`
 		Data          []ports.Listener `json:"data"`
 	}
 	if err := json.Unmarshal(stdout.Bytes(), &output); err != nil {
 		t.Fatalf("decode JSON output: %v", err)
 	}
-	if output.SchemaVersion != 1 || output.Command != "port find" {
+	if output.SchemaVersion != 2 || !output.OK || output.Command != "port find" {
 		t.Fatalf("unexpected JSON envelope: %+v", output)
 	}
 	if len(output.Data) != 1 || output.Data[0].PID != 42 {

@@ -9,7 +9,6 @@ import (
 	"github.com/MatheusCampagnolo/wintonicz/internal/resources"
 	"github.com/MatheusCampagnolo/wintonicz/internal/services"
 	"github.com/MatheusCampagnolo/wintonicz/internal/storage"
-	"github.com/MatheusCampagnolo/wintonicz/internal/support"
 	"github.com/MatheusCampagnolo/wintonicz/internal/system"
 	"github.com/MatheusCampagnolo/wintonicz/internal/usb"
 )
@@ -25,7 +24,6 @@ type Services struct {
 	USB       usb.Source
 	Storage   storage.Source
 	Resources resources.Source
-	Support   support.Source
 }
 
 // NewWindowsServices wires the initial Windows data collectors.
@@ -41,6 +39,5 @@ func NewWindowsServices() Services {
 		USB:       collector,
 		Storage:   collector,
 		Resources: collector,
-		Support:   collector,
 	}
 }

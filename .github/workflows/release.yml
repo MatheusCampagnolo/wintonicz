@@ -1,0 +1,82 @@
+name: Release
+
+# Publishing a tag such as v0.2.0-alpha builds the Windows executable, writes a
+# SHA-256 checksum file, and creates a GitHub release. scripts/run.ps1 downloads
+# exactly these two assets, so their names are a contract:
+#   wintonicz_<version>_windows_amd64.exe
+#   checksums.txt   ("<sha256>  <asset name>" per line)
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Existing tag to build, for example v0.2.0-alpha"
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Build and publish (Windows)
+    runs-on: windows-latest
+    env:
+      TAG: ${{ github.event.inputs.tag || github.ref_name }}
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ env.TAG }}
+
+      - name: Set up Go
+        uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Test and vet
+        run: |
+          go test ./...
+          go vet ./...
+
+      - name: Build
+        shell: pwsh
+        env:
+          CGO_ENABLED: "0"
+          GOOS: windows
+          GOARCH: amd64
+        run: |
+          $version = $env:TAG.TrimStart('v')
+          New-Item -ItemType Directory -Path dist -Force | Out-Null
+          $asset = "dist/wintonicz_${version}_windows_amd64.exe"
+          go build -trimpath -ldflags "-s -w -X main.version=$version" -o $asset ./cmd/wintonicz
+          if ($LASTEXITCODE -ne 0) { throw "go build failed" }
+          Copy-Item scripts/run.ps1 dist/run.ps1
+          $hash = (Get-FileHash $asset -Algorithm SHA256).Hash.ToLower()
+          "$hash  $(Split-Path $asset -Leaf)" | Set-Content dist/checksums.txt -Encoding ascii
+          Get-Content dist/checksums.txt
+
+      - name: Smoke-test the built executable
+        shell: pwsh
+        run: |
+          $version = $env:TAG.TrimStart('v')
+          $out = & "dist/wintonicz_${version}_windows_amd64.exe" --version
+          if ($out -notmatch [regex]::Escape($version)) { throw "unexpected version output: $out" }
+          & "dist/wintonicz_${version}_windows_amd64.exe" tools list --json | ConvertFrom-Json | Out-Null
+
+      - name: Publish release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $flags = @()
+          if ($env:TAG -match '-(alpha|beta|rc)') { $flags += '--prerelease' }
+          gh release view $env:TAG *> $null
+          if ($LASTEXITCODE -eq 0) {
+            gh release upload $env:TAG dist/* --clobber
+          } else {
+            gh release create $env:TAG dist/* --title $env:TAG --generate-notes @flags
+          }

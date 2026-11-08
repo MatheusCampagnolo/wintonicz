@@ -1,0 +1,23 @@
+# Wintonicz
+
+> Windows support toolbox: one executable with a terminal UI, a command line, and JSON output. Windows 10/11 x64. No telemetry, no installer, no self-update.
+
+Run without installing (PowerShell):
+  irm https://raw.githubusercontent.com/MatheusCampagnolo/wintonicz/main/scripts/run.ps1 | iex
+Run a command (arguments need the script-block form):
+  & ([scriptblock]::Create((irm https://raw.githubusercontent.com/MatheusCampagnolo/wintonicz/main/scripts/run.ps1))) port find 8080 --json
+
+## Discover what it can do
+- `wintonicz tools list --json` lists every tool with id, risk (read, launch, change, destructive), admin (none, optional, required), duration, and CLI command.
+- `wintonicz tools describe <id> --json` adds the exact command an action would run.
+
+## Rules for agents
+- Prefer `--json`. Output is one document: `{schemaVersion, ok, tool, command, data, warnings, error, meta}`. Check `ok` first. Errors are in the same envelope on stdout.
+- Read tools never change the system. Actions need `--yes`; without it they print a preview and exit 4. `--dry-run` always previews and exits 0.
+- Never pass `--yes` for risk `change` or `destructive` unless the human approved that specific action.
+- Exit codes: 0 ok, 1 error, 2 usage, 3 needs administrator, 4 not run (preview, declined, read-only), 10 the underlying command failed.
+- If `error.code` is `needs_admin`, ask the human; elevation opens a UAC prompt.
+- `--read-only` (or `WTZ_READ_ONLY=1`) refuses every action. `WTZ_JSON=1` makes JSON the default.
+- Inputs are validated and never passed to a shell. Do not try to work around a rejected value.
+
+More: docs/ai.md

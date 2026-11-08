@@ -11,8 +11,6 @@ import (
 	"github.com/MatheusCampagnolo/wintonicz/internal/network"
 	"github.com/MatheusCampagnolo/wintonicz/internal/ports"
 	"github.com/MatheusCampagnolo/wintonicz/internal/processes"
-	"github.com/MatheusCampagnolo/wintonicz/internal/storage"
-	"github.com/MatheusCampagnolo/wintonicz/internal/support"
 	"github.com/spf13/cobra"
 )
 
@@ -48,7 +46,7 @@ func newProcessListCommand(services app.Services) *cobra.Command {
 		},
 	}
 	command.Flags().StringVarP(&nameFilter, "name", "n", "", "Filter by process name (case-insensitive substring)")
-	command.Flags().BoolVar(&asJSON, "json", false, "Write structured JSON output")
+	command.Flags().BoolVar(&asJSON, "json", jsonDefault(), "Write structured JSON output")
 	return command
 }
 
@@ -74,7 +72,7 @@ func newProcessPortsCommand(services app.Services) *cobra.Command {
 			return writePortTable(cmd.OutOrStdout(), matches)
 		},
 	}
-	command.Flags().BoolVar(&asJSON, "json", false, "Write structured JSON output")
+	command.Flags().BoolVar(&asJSON, "json", jsonDefault(), "Write structured JSON output")
 	return command
 }
 
@@ -102,7 +100,7 @@ func newSystemCommand(services app.Services) *cobra.Command {
 			return writeSystemSummary(cmd.OutOrStdout(), snapshot)
 		},
 	}
-	info.Flags().BoolVar(&asJSON, "json", false, "Write structured JSON output")
+	info.Flags().BoolVar(&asJSON, "json", jsonDefault(), "Write structured JSON output")
 	command.AddCommand(info)
 	return command
 }
@@ -125,7 +123,7 @@ func newServiceCommand(deps app.Services) *cobra.Command {
 			return writeServiceTable(cmd.OutOrStdout(), entries)
 		},
 	}
-	list.Flags().BoolVar(&asJSON, "json", false, "Write structured JSON output")
+	list.Flags().BoolVar(&asJSON, "json", jsonDefault(), "Write structured JSON output")
 	command.AddCommand(list)
 	return command
 }
@@ -148,7 +146,7 @@ func newUSBCommand(deps app.Services) *cobra.Command {
 			return writeUSBTable(cmd.OutOrStdout(), devices)
 		},
 	}
-	list.Flags().BoolVar(&asJSON, "json", false, "Write structured JSON output")
+	list.Flags().BoolVar(&asJSON, "json", jsonDefault(), "Write structured JSON output")
 	command.AddCommand(list)
 	return command
 }
@@ -171,7 +169,7 @@ func newStorageCommand(deps app.Services) *cobra.Command {
 			return writeStorageTable(cmd.OutOrStdout(), volumes)
 		},
 	}
-	list.Flags().BoolVar(&asJSON, "json", false, "Write structured JSON output")
+	list.Flags().BoolVar(&asJSON, "json", jsonDefault(), "Write structured JSON output")
 	command.AddCommand(list)
 	return command
 }
@@ -194,67 +192,9 @@ func newResourceCommand(deps app.Services) *cobra.Command {
 			return writeResourceSummary(cmd.OutOrStdout(), result)
 		},
 	}
-	snapshot.Flags().BoolVar(&asJSON, "json", false, "Write structured JSON output")
+	snapshot.Flags().BoolVar(&asJSON, "json", jsonDefault(), "Write structured JSON output")
 	command.AddCommand(snapshot)
 	return command
-}
-
-func newSupportCommand(deps app.Services) *cobra.Command {
-	command := &cobra.Command{Use: "support", Short: "Run guided Windows support actions", Args: cobra.NoArgs}
-	var confirm, asJSON bool
-	diskCheck := &cobra.Command{
-		Use:   "disk-check <drive>",
-		Short: "Preview or run a read-only filesystem check",
-		Args:  cobra.ExactArgs(1),
-		RunE: func(cmd *cobra.Command, args []string) error {
-			drive, err := support.NormalizeDrive(args[0])
-			if err != nil {
-				return err
-			}
-			volumes, err := deps.Storage.ListVolumes()
-			if err != nil {
-				return fmt.Errorf("validate disk-check drive: %w", err)
-			}
-			if !isCheckableDrive(drive, volumes) {
-				return fmt.Errorf("%s is not a recognized fixed or removable drive", strings.TrimSuffix(drive, `\`))
-			}
-			preview := support.NewDiskCheckPreview(drive)
-			if !confirm {
-				if asJSON {
-					return writeJSON(cmd.OutOrStdout(), "support disk-check preview", preview)
-				}
-				return writeDiskCheckPreview(cmd.OutOrStdout(), preview)
-			}
-			result, err := deps.Support.RunDiskCheck(cmd.Context(), drive)
-			if err != nil {
-				return fmt.Errorf("run disk check: %w", err)
-			}
-			if asJSON {
-				if err := writeJSON(cmd.OutOrStdout(), "support disk-check", result); err != nil {
-					return err
-				}
-			} else if err := writeDiskCheckResult(cmd.OutOrStdout(), result); err != nil {
-				return err
-			}
-			if result.ExitCode != 0 {
-				return support.DiskCheckExitError{Code: result.ExitCode}
-			}
-			return nil
-		},
-	}
-	diskCheck.Flags().BoolVar(&confirm, "yes", false, "Run the command after reviewing its preview")
-	diskCheck.Flags().BoolVar(&asJSON, "json", false, "Write structured JSON output")
-	command.AddCommand(diskCheck)
-	return command
-}
-
-func isCheckableDrive(drive string, volumes []storage.Volume) bool {
-	for _, volume := range volumes {
-		if strings.EqualFold(volume.Drive, drive) && support.IsDiskCheckVolume(volume) {
-			return true
-		}
-	}
-	return false
 }
 
 func newNetworkCommand(services app.Services) *cobra.Command {
@@ -275,7 +215,7 @@ func newNetworkCommand(services app.Services) *cobra.Command {
 			return writeNetworkTable(cmd.OutOrStdout(), adapters)
 		},
 	}
-	status.Flags().BoolVar(&statusJSON, "json", false, "Write structured JSON output")
+	status.Flags().BoolVar(&statusJSON, "json", jsonDefault(), "Write structured JSON output")
 	var timeout time.Duration
 	var checkJSON bool
 	check := &cobra.Command{
@@ -294,8 +234,8 @@ func newNetworkCommand(services app.Services) *cobra.Command {
 		},
 	}
 	check.Flags().DurationVar(&timeout, "timeout", 3*time.Second, "Maximum duration for DNS and TCP checks (max 30s)")
-	check.Flags().BoolVar(&checkJSON, "json", false, "Write structured JSON output")
-	command.AddCommand(status, check)
+	check.Flags().BoolVar(&checkJSON, "json", jsonDefault(), "Write structured JSON output")
+	command.AddCommand(status, check, newFlushDNSCommand())
 	return command
 }
 
@@ -314,7 +254,7 @@ func newPanelCommand(services app.Services) *cobra.Command {
 			return writePanelTable(cmd.OutOrStdout(), items)
 		},
 	}
-	list.Flags().BoolVar(&asJSON, "json", false, "Write structured JSON output")
+	list.Flags().BoolVar(&asJSON, "json", jsonDefault(), "Write structured JSON output")
 	open := &cobra.Command{
 		Use:   "open <panel-key>",
 		Short: "Open a panel by its listed key",
@@ -348,7 +288,7 @@ func newPortListCommand(services app.Services) *cobra.Command {
 			return writePortTable(cmd.OutOrStdout(), listeners)
 		},
 	}
-	command.Flags().BoolVar(&asJSON, "json", false, "Write structured JSON output")
+	command.Flags().BoolVar(&asJSON, "json", jsonDefault(), "Write structured JSON output")
 	return command
 }
 
@@ -384,7 +324,7 @@ func newPortFindCommand(services app.Services) *cobra.Command {
 			return writePortTable(cmd.OutOrStdout(), matches)
 		},
 	}
-	command.Flags().BoolVar(&asJSON, "json", false, "Write structured JSON output")
+	command.Flags().BoolVar(&asJSON, "json", jsonDefault(), "Write structured JSON output")
 	return command
 }
 
