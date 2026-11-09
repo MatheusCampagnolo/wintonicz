@@ -9,6 +9,7 @@ Run a command (arguments need the script-block form):
 
 ## Discover what it can do
 - `wintonicz tools list --json` lists every tool with id, risk (read, launch, change, destructive), admin (none, optional, required), duration, and CLI command.
+- `wintonicz mcp --read-only` is an MCP server (stdio) exposing only the read-only tools; see docs/ai.md.
 - `wintonicz tools describe <id> --json` adds the exact command an action would run.
 
 ## Rules for agents

@@ -80,7 +80,7 @@ go build ./...
 
 Add `--json` to structured commands. `panel open` launches only a fixed, listed Windows panel — never an arbitrary executable or shell string. `service list` is read-only and never starts, stops, or reconfigures a service.
 
-Every `--json` call prints one document: `{schemaVersion: 2, ok, tool, command, data, error, meta}`; failures use the same shape on stdout. Exit codes: 0 ok, 1 error, 2 usage, 3 needs administrator, 4 not run (preview, declined, read-only), 10 the Windows command failed. `wintonicz tools list --json` describes every tool; see [docs/ai.md](docs/ai.md) and [llms.txt](llms.txt). Preferences: `wintonicz config get|set` (`readOnly`, `jsonDefault`, `actionLog`, `defaultArea`, `alwaysAdmin`).
+Every `--json` call prints one document: `{schemaVersion: 2, ok, tool, command, data, error, meta}`; failures use the same shape on stdout. Exit codes: 0 ok, 1 error, 2 usage, 3 needs administrator, 4 not run (preview, declined, read-only), 10 the Windows command failed. `wintonicz tools list --json` describes every tool; see [docs/ai.md](docs/ai.md) and [llms.txt](llms.txt). Preferences: `wintonicz config get|set` (`readOnly`, `jsonDefault`, `actionLog`, `defaultArea`, `alwaysAdmin`). For AI clients, `wintonicz mcp --read-only` serves the read-only tools over MCP (see docs/ai.md).
 
 **Administrator:** by default the interface restarts itself as administrator at launch (one UAC prompt, new window). A declined prompt continues as a normal user. To stay as your normal user: `wintonicz --no-admin`, `WTZ_ADMIN=0`, or `wintonicz config set alwaysAdmin false`. Subcommands such as `port list` never elevate on their own.
 

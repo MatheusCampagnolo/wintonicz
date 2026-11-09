@@ -14,7 +14,7 @@ import (
 	"github.com/MatheusCampagnolo/wintonicz/internal/runner"
 )
 
-// Specs returns the Phase 7 actions keyed by catalog tool ID.
+// Specs returns the reversible-change actions keyed by catalog tool ID.
 func Specs() map[string]runner.Spec {
 	return map[string]runner.Spec{
 		"power.list": {Build: func(map[string]string) (runner.Plan, error) { return powerListPlan() }},

@@ -68,12 +68,11 @@ type Tool struct {
 	Restart    bool     `json:"restart"`
 	Reversible bool     `json:"reversible"`
 	Command    []string `json:"command,omitempty"`
-	Phase      string   `json:"phase"`
 }
 
 func read(id string, area Area, title, summary string, admin Admin, command []string, keywords ...string) Tool {
 	return Tool{ID: id, Area: area, Title: title, Summary: summary, Keywords: keywords, Kind: KindView,
-		Risk: RiskRead, Admin: admin, Duration: DurationInstant, Reversible: true, Command: command, Phase: "1"}
+		Risk: RiskRead, Admin: admin, Duration: DurationInstant, Reversible: true, Command: command}
 }
 
 var tools = []Tool{
@@ -95,13 +94,13 @@ var tools = []Tool{
 	read("net.quick", AreaNetwork, "Quick internet check", "Walks from your adapter to the internet in four steps and says where it breaks. Contacts example.com and 1.1.1.1 only.", AdminNone, []string{"network", "quick"}, "no internet", "wifi connected no internet", "dns"),
 	read("net.check", AreaNetwork, "Connectivity check", "DNS resolution and one TCP connection to a host and port you choose.", AdminNone, []string{"network", "check"}, "no internet", "cannot reach server"),
 	{ID: "win.panels", Area: AreaWindows, Title: "Windows panels", Summary: "Open built-in Windows settings and management panels.", Kind: KindLaunch,
-		Risk: RiskLaunch, Admin: AdminNone, Duration: DurationInstant, Reversible: true, Command: []string{"panel", "list"}, Phase: "1",
+		Risk: RiskLaunch, Admin: AdminNone, Duration: DurationInstant, Reversible: true, Command: []string{"panel", "list"},
 		Keywords: []string{"control panel", "device manager", "settings"}},
 	{ID: "settings.about", Area: AreaSettings, Title: "About and settings", Summary: "Where Wintonicz keeps its files, which preferences are on, and how to change them.", Kind: KindView,
-		Risk: RiskRead, Admin: AdminNone, Duration: DurationInstant, Reversible: true, Command: []string{"config", "get"}, Phase: "3",
+		Risk: RiskRead, Admin: AdminNone, Duration: DurationInstant, Reversible: true, Command: []string{"config", "get"},
 		Keywords: []string{"preferences", "config", "logs", "version"}},
 	{ID: "net.flushdns", Area: AreaNetwork, Title: "Flush DNS cache", Summary: "Clears the Windows DNS resolver cache. Names are looked up again on next use.", Kind: KindAction,
-		Risk: RiskChange, Admin: AdminRequired, Duration: DurationInstant, Reversible: true, Command: []string{"network", "flushdns"}, Phase: "2",
+		Risk: RiskChange, Admin: AdminRequired, Duration: DurationInstant, Reversible: true, Command: []string{"network", "flushdns"},
 		Keywords: []string{"no internet", "wrong website", "dns"}},
 }
 
@@ -160,13 +159,4 @@ func Search(query string) []Tool {
 		out[i] = hit.tool
 	}
 	return out
-}
-
-func init() {
-	for i := range tools {
-		switch tools[i].ID {
-		case "inspect.keyservices", "inspect.diskhealth", "inspect.security", "inspect.startup", "inspect.programs", "net.quick", "net.ping", "inspect.why":
-			tools[i].Phase = "4"
-		}
-	}
 }

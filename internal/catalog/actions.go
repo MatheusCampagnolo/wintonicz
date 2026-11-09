@@ -2,10 +2,10 @@ package catalog
 
 func action(id string, area Area, title, summary string, risk Risk, admin Admin, dur Duration, reversible, restart bool, command []string, keywords ...string) Tool {
 	return Tool{ID: id, Area: area, Title: title, Summary: summary, Keywords: keywords, Kind: KindAction, Risk: risk, Admin: admin,
-		Duration: dur, Restart: restart, Reversible: reversible, Command: command, Phase: "5"}
+		Duration: dur, Restart: restart, Reversible: reversible, Command: command}
 }
 
-// Support Pack II: guided repairs, cleanup, and reports. Every one goes through the runner.
+// Guided repairs, cleanup, and reports. Every one goes through the runner.
 func init() {
 	tools = append(tools,
 		action("repair.sfc", AreaRepair, "System File Checker", "Scans protected Windows files and repairs corrupted ones. Takes 10–30 minutes.",
@@ -35,17 +35,16 @@ func init() {
 	)
 }
 
-// Phase 6 reports.
+// Reports.
 func init() {
 	support := action("report.support", AreaReports, "Support report", "Writes one file with system, disk, network, security, startup, programs, and ports. Redacts user, host, IP, and MAC by default. Stays on this PC.",
 		RiskChange, AdminOptional, DurationSeconds, true, false, []string{"report", "support"}, "send to support", "diagnostics report", "export")
 	gp := action("report.gpresult", AreaReports, "Group Policy report", "Saves the Group Policy result as an HTML file, redacted. Computer policy needs administrator.",
 		RiskChange, AdminOptional, DurationSeconds, true, false, []string{"report", "gpresult"}, "gpo", "group policy", "gpresult")
-	support.Phase, gp.Phase = "6", "6"
 	tools = append(tools, support, gp)
 }
 
-// Phase 7: reversible changes. Each writes a prior-state record first and can be
+// Reversible changes. Each writes a prior-state record first and can be
 // reversed with `undo` (a restore point is rolled back with System Restore).
 func init() {
 	list := action("power.list", AreaWindows, "Power plans", "Lists the power plans on this PC and marks the active one.",
@@ -64,8 +63,5 @@ func init() {
 		RiskRead, AdminNone, DurationInstant, true, false, []string{"undo", "list"}, "history", "what changed")
 	undo := action("undo", AreaRepair, "Undo a change", "Reverses a recorded change (power plan, Explorer preference, update reset, network reset). Default: the newest.",
 		RiskChange, AdminOptional, DurationSeconds, true, false, []string{"undo"}, "revert", "rollback", "undo")
-	for _, t := range []*Tool{&list, &set, &pref, &point, &wu, &reset, &undoList, &undo} {
-		t.Phase = "7"
-	}
 	tools = append(tools, list, set, pref, point, wu, reset, undoList, undo)
 }

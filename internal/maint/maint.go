@@ -1,4 +1,4 @@
-// Package maint holds the maintenance actions of Support Pack II: repairs, cleanup,
+// Package maint holds the maintenance actions: repairs, cleanup,
 // log backup, download, and ending a process. Each action is a runner.Spec that
 // validates its inputs and returns a Plan with an honest Preview.
 package maint

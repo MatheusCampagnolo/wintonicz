@@ -56,6 +56,7 @@ func NewRootCommand(version string, runTUI func() error, services app.Services) 
 		newProgramCommand(services),
 		newWhyCommand(services),
 		newToolsCommand(services),
+		newMCPCommand(),
 		newConfigCommand(),
 		newPinCommand(),
 		newUnpinCommand(),

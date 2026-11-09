@@ -70,3 +70,13 @@ Failures use the same shape with `"ok": false` and an `error` object (`code`, `m
 - `why <pid|name|:port> --json` returns `reasons[]`, each with `confidence: confirmed|inferred`. Treat `inferred` as a hypothesis and report it as one. `limits[]` lists what the current account could not read.
 - `report support` and `report gpresult` write to a local file only. Redaction masks user name, computer name, IPv4/IPv6, and MAC by default (`--redact none` disables it and the preview says so). Masking is pattern-based; tell the human to review the file before sharing it.
 - Reversible changes (`power set`, `explorer pref`, `repair wureset`, `network reset`) record their prior state in `%LOCALAPPDATA%\Wintonicz\undo`. Run `undo list` to see it and `undo [id]` to reverse one. `repair restorepoint` is rolled back with System Restore. Always `--dry-run` first and show the human the preview; `network reset` needs a restart afterward.
+
+## MCP server (read-only)
+
+`wintonicz mcp --read-only` speaks the Model Context Protocol on stdio. Add it to an MCP client, for example:
+
+```json
+{ "mcpServers": { "wintonicz": { "command": "C:\path\to\wintonicz.exe", "args": ["mcp", "--read-only"] } } }
+```
+
+It exposes only tools whose risk is `read`, named with underscores (`inspect_system`, `inspect_why`, `net_quick`, `power_list`, ...). Each takes an optional `args` array of plain values (a host, PID, or process name); values that start with `-` are refused. Every call runs Wintonicz with `--json --read-only`, so repairs, cleanup, and changes are not reachable. Output is the normal JSON envelope and is not redacted: it can contain the computer name, user name, and addresses, so connect it only to a client you trust with that.

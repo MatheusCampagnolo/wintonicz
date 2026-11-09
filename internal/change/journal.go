@@ -1,4 +1,4 @@
-// Package change holds the reversible changes of Phase 7: power plans, Explorer
+// Package change holds the reversible changes: power plans, Explorer
 // preferences, restore points, Windows Update reset, and network reset. Every change
 // first writes a journal entry with the prior state, and `undo` replays that entry.
 //
